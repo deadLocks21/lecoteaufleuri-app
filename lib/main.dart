@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lecoteaufleuri/ui/pages/home/home.page.dart';
+import 'package:lecoteaufleuri/ui/theme/app_theme_data.dart';
 
 void main() {
-  runApp(const ProviderScope(child: MyApp()));
+  runApp(const ProviderScope(child: LeCoteauFleuriApp()));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class LeCoteauFleuriApp extends StatelessWidget {
+  const LeCoteauFleuriApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Le Coteau Fleuri',
-      theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: const Color(0xFF8DD35F)),
-      ),
-      home: Scaffold(body: const Center(child: Text('Hello, World!'))),
+      theme: AppThemeData.buildLightTheme(),
+      darkTheme: AppThemeData.buildDarkTheme(),
+      debugShowCheckedModeBanner: false,
+      home: const HomePage(),
     );
   }
 }
