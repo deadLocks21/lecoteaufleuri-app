@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lecoteaufleuri/ui/pages/home/home.page.dart';
 import 'package:lecoteaufleuri/ui/theme/app_theme_data.dart';
+import 'package:lecoteaufleuri/ui/widgets/auth_gate.widget.dart';
 
 void main() {
   runApp(const ProviderScope(child: LeCoteauFleuriApp()));
@@ -17,7 +17,7 @@ class LeCoteauFleuriApp extends StatelessWidget {
       theme: AppThemeData.buildLightTheme(),
       darkTheme: AppThemeData.buildDarkTheme(),
       debugShowCheckedModeBanner: false,
-      home: const HomePage(),
+      home: const AuthGate(),
     );
   }
 }
