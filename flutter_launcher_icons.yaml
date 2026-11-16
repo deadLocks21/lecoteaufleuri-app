@@ -1,0 +1,32 @@
+flutter_launcher_icons:
+  # Source : design/logo.jpg (dépôt lecoteaufleuri/dev), recadré dans assets/icon/.
+  image_path: "assets/icon/app_icon.png"
+
+  # Android — icône adaptative (Android 8.0+) : logo détouré sur fond blanc,
+  # déjà réduit dans la zone sûre (66dp sur 108dp) → pas d'inset supplémentaire.
+  android: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  adaptive_icon_foreground_inset: 0
+
+  # iOS
+  ios: true
+  remove_alpha_ios: true
+
+  # macOS
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+
+  # Windows
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 48
+
+  # Web
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    background_color: "#FFFFFF"
+    theme_color: "#8DD35F"
