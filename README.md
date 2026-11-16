@@ -9,7 +9,7 @@ Application **Le Coteau Fleuri** — Flutter (Android · iOS · macOS · Windows
   (`core/domain`, `core/application`, `infrastructure`, `ui`), Riverpod 3 + codegen, imports
   absolus. Détails : [ARCHITECTURE.md](ARCHITECTURE.md).
 
-> Statut : Hello World — structure, dépendances et CI en place.
+> Statut : connexion par téléphone + OTP en place (accueil minimal une fois connecté).
 
 ## Développer
 
@@ -20,6 +20,24 @@ flutter analyze                      # flutter_lints + riverpod_lint
 flutter test
 dart run build_runner watch -d       # codegen Riverpod (*.g.dart), dès le premier @riverpod
 ```
+
+### Connexion et API
+
+L'app s'ouvre sur la connexion par numéro de mobile + code reçu par SMS.
+
+- **Sans backend** (par défaut) : compte de démo `06 12 34 56 78`, code `000000`.
+- **Contre l'API** (`lecoteaufleuri/api`) : passer son origine à la compilation.
+
+  ```sh
+  flutter run --dart-define=API_BASE_URL=http://localhost:7780   # simulateur iOS, macOS
+  flutter run --dart-define=API_BASE_URL=http://10.0.2.2:7780    # émulateur Android
+  ```
+
+  Le compte se crée côté API (`make console C="app:auth:create-user +33612345678 Prénom Nom"`)
+  et, en dev, le code s'y lit dans `var/log/dev.log` au lieu de partir par SMS.
+
+Avec Xcode 27, `flutter build ios --simulator` échoue sur `lipo -verify_arch` (build
+universel) : lancer plutôt `flutter run -d <simulateur>`, qui ne compile qu'une architecture.
 
 Flutter **3.41.7** (même version que la CI, cf. `FLUTTER_VERSION` dans `.github/workflows/release.yml`).
 

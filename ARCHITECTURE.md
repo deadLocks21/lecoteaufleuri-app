@@ -6,21 +6,51 @@ Architecture **hexagonale, layer-first**, identique à `songbook-app` / `kidflix
 
 ```
 lib/
-├── main.dart                 # Point d'entrée : ProviderScope + MaterialApp
+├── main.dart                 # Point d'entrée : ProviderScope + MaterialApp (racine : AuthGate)
 ├── core/
-│   ├── domain/               # Domain : modèles + interfaces de ports (Dart pur)
-│   └── application/          # Application : DTOs, cas d'usage, services (Dart pur)
+│   ├── domain/               # Domain (Dart pur)
+│   │   ├── model/            # PhoneNumber, OtpCode, User, Session
+│   │   ├── exceptions/       # AuthException + AuthErrorCode
+│   │   └── services/         # Ports : AuthRepository, SessionRepository
+│   └── application/          # Application (Dart pur)
+│       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto
+│       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, Logout
+│       ├── services/         # AuthApplicationService (regroupe les cas d'usage)
+│       └── session_state.dart  # Machine d'états de la session
 ├── infrastructure/
-│   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI
+│   ├── auth/                 # dio.auth.repository, in_memory.auth.repository
+│   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
+│   ├── http/                 # AuthInterceptor (Bearer + 401), chemins et codes d'erreur de l'API
+│   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
+│                             # dont SessionController
 └── ui/
-    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page)
+    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/
+    ├── widgets/              # *.widget.dart partagés : AuthGate
     └── theme/                # AppThemeData (Material 3, seed = vert du logo)
 test/
+├── helpers/                  # Doublures et données partagées (FakeHttpAdapter, fixtures)
 ├── unit/                     # Tests unitaires (domain, application, infrastructure)
 └── functional/               # Tests de widgets / parcours (pages)
 ```
 
 Les dossiers vides sont tenus par un `.gitkeep` en attendant leur premier fichier.
+
+## Connexion (téléphone + OTP)
+
+Même parcours que songbook, motorz et kidflix, contre l'API (`API.md` du dépôt api) :
+
+1. **Saisie du numéro** → `RequestOtpUseCase` normalise en E.164 (`06 12…` → `+33612…`)
+   et l'API envoie un code par SMS. Pas d'inscription : un numéro inconnu est refusé.
+2. **Saisie du code** (6 chiffres, renvoi possible après 60 s) → `VerifyOtpUseCase`
+   obtient le JWT et persiste la session (`shared_preferences`).
+3. **Session** : restaurée au démarrage tant qu'elle n'est pas expirée. `AuthInterceptor`
+   pose le Bearer sur toute route hors `/api/auth/*` ; sur `401 invalid_token`,
+   `SessionController.expire()` efface la session et renvoie un SMS au même numéro
+   (un seul, même si plusieurs requêtes échouent ensemble).
+
+`AuthGate` choisit l'écran d'après `SessionState` (`SessionRestoring`, `Anonymous`,
+`OtpRequested`, `Authenticated`). Les écrans ne voient que des DTOs : le JWT ne quitte
+jamais l'infrastructure.
 
 ## Dépendances
 
