@@ -1,0 +1,794 @@
+# Workflow de release Le Coteau Fleuri, déclenché sur push d'un tag `v*`.
+#
+# Le tag est poussé par la CI GitLab (semantic-release, cf. .gitlab-ci.yml) puis
+# mirroré vers GitHub (deadLocks21/lecoteaufleuri-app), ce qui déclenche ce
+# workflow. Calqué sur motorz / songbook / kidflix, sans l'updater desktop ni le
+# canal web (à ajouter le jour où l'app en a besoin).
+#
+# Pipeline "fail-fast au build (gate strict) → GitHub Release → stores" :
+#
+#   1) prepare          Calcule la version (depuis le tag ou pubspec.yaml).
+#   2) build-android    AAB (Play Store) + APK universel (sideload), signés.
+#      build-ios        IPA signé App Store.
+#      build-macos      .pkg signé Mac App Store.
+#      build-windows    .zip autonome du dossier Release.
+#      build-linux      AppImage x86_64.
+#      Tout reste en artifact : rien n'est publié à ce stade.
+#   3) build-gate       Sentinelle : TOUS les builds doivent être verts. Si un
+#                       seul plante, ni Release ni store.
+#   4) release          GitHub Release dès le gate franchi, sans attendre le
+#                       traitement (souvent lent) des stores. Assets attachés :
+#                       uniquement ce qu'un utilisateur peut installer (APK,
+#                       .zip Windows, AppImage) — ni l'AAB, ni l'IPA, ni le .pkg.
+#   5) publish-android  Play Store, piste "internal".
+#      publish-ios      TestFlight (testeurs internes, sans review).
+#      publish-macos    TestFlight macOS (testeurs internes, sans review).
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   ANDROID_KEYSTORE_BASE64              keystore upload (.jks) encodé base64
+#   ANDROID_KEYSTORE_PASSWORD            mot de passe du keystore
+#   ANDROID_KEY_ALIAS                    alias de la clé
+#   ANDROID_KEY_PASSWORD                 mot de passe de la clé
+#   GCLOUD_SERVICE_ACCOUNT_CREDENTIALS   JSON du compte de service Google Play
+#   APP_STORE_CONNECT_KEY_IDENTIFIER     Key ID de la clé API App Store Connect
+#   APP_STORE_CONNECT_ISSUER_ID          Issuer ID du compte App Store Connect
+#   APP_STORE_CONNECT_PRIVATE_KEY        contenu du .p8 de la clé API
+#   CERTIFICATE_PRIVATE_KEY              clé privée du cert Apple Distribution
+#   MAC_INSTALLER_CERTIFICATE_P12_BASE64 cert "3rd Party Mac Developer Installer" (.p12 base64)
+#   MAC_INSTALLER_CERTIFICATE_PASSWORD   mot de passe du .p12 installer
+#
+# Variable requise (même écran, onglet « Variables ») :
+#   APP_STORE_APPLE_ID                   Apple ID (numérique) de l'app dans App
+#                                        Store Connect — une seule fiche iOS +
+#                                        macOS (Universal Purchase, même bundle).
+#
+# Pré-requis Play Console : l'app `com.lecoteaufleuri.app` doit exister et un
+# premier AAB peut devoir être uploadé à la main avant que l'API accepte les
+# publications automatiques sur la piste internal.
+# Pré-requis App Store Connect : app créée avec le bundle `com.lecoteaufleuri.app`
+# (plateformes iOS + macOS). Les provisioning profiles sont générés au premier
+# build par `fetch-signing-files --create`.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Source unique de la version Flutter pour tous les jobs.
+  FLUTTER_VERSION: "3.41.7"
+  BUNDLE_ID: "com.lecoteaufleuri.app"
+
+jobs:
+  prepare:
+    name: Compute version
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extrait la version depuis le tag (ou pubspec.yaml)
+        # Tag `v1.2.3` → 1.2.3. Pour `workflow_dispatch` (lancement manuel
+        # sans tag), on retombe sur la version de `pubspec.yaml`.
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//;s/+.*//')
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version: $VERSION"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # BUILDS — Compilation + signature + upload artifact (pas de publish)
+  # ═══════════════════════════════════════════════════════════════════════
+
+  build-android:
+    name: Build Android (${{ needs.prepare.outputs.version }})
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java (Temurin 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Setup Python (requis par codemagic-cli-tools)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install codemagic-cli-tools
+        run: pip install codemagic-cli-tools
+
+      - name: Décoder le keystore upload
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/android/upload-keystore.jks"
+
+      - name: Écrire android/key.properties
+        # Lu par android/app/build.gradle.kts pour signer le build release.
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          cat > "$GITHUB_WORKSPACE/android/key.properties" <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=$GITHUB_WORKSPACE/android/upload-keystore.jks
+          EOF
+
+      - run: flutter pub get
+
+      - name: Compute build number from Google Play
+        id: build-number
+        run: |
+          LATEST_BUILD=$(google-play get-latest-build-number \
+            --package-name "$BUNDLE_ID" \
+            --credentials "@env:GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" \
+            --tracks production beta alpha internal 2>/dev/null || echo 0)
+          BUILD_NUMBER=$((${LATEST_BUILD:-0} + 1))
+          echo "Next Android build number: $BUILD_NUMBER"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Build App Bundle (.aab)
+        run: |
+          flutter build appbundle --release \
+            --build-name="$VERSION" \
+            --build-number="${{ steps.build-number.outputs.build_number }}"
+
+      - name: Build APK universel (.apk)
+        # Attaché à la GitHub Release pour l'install directe / sideload. Le Play
+        # Store reçoit l'AAB (cf. publish-android).
+        run: |
+          flutter build apk --release \
+            --build-name="$VERSION" \
+            --build-number="${{ steps.build-number.outputs.build_number }}"
+          mv build/app/outputs/flutter-apk/app-release.apk \
+            "build/app/outputs/flutter-apk/lecoteaufleuri-android-$VERSION.apk"
+
+      - name: Upload AAB + APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lecoteaufleuri-android
+          path: |
+            build/app/outputs/bundle/release/*.aab
+            build/app/outputs/flutter-apk/lecoteaufleuri-android-*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+  build-ios:
+    name: Build iOS (${{ needs.prepare.outputs.version }})
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    env:
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
+      APP_STORE_APPLE_ID: ${{ vars.APP_STORE_APPLE_ID }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.3 (iOS 26 SDK)
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Setup Python (requis par codemagic-cli-tools)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install codemagic-cli-tools
+        run: pip install codemagic-cli-tools
+
+      - name: Initialize keychain
+        run: keychain initialize
+
+      - name: Fetch signing files (create if missing)
+        run: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --create
+
+      - name: Add certificates to keychain
+        run: keychain add-certificates
+
+      - name: Set up code signing on Xcode project
+        # Écrit aussi ~/export_options.plist, consommé par `flutter build ipa`.
+        run: xcode-project use-profiles --project ios/Runner.xcodeproj
+
+      - run: flutter pub get
+
+      - name: Cache CocoaPods (iOS)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-ios-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: pods-ios-${{ runner.os }}-
+
+      - name: Install CocoaPods dependencies (iOS)
+        # Pas de Podfile tant que l'app n'a aucun plugin natif : `find` ne fait
+        # alors rien, et le pas reste valable le jour où il en apparaît un.
+        run: find ios -name Podfile -execdir pod install \;
+
+      - name: Compute build number from App Store Connect (iOS)
+        id: build-number
+        run: |
+          : "${APP_STORE_APPLE_ID:?Variable GitHub APP_STORE_APPLE_ID manquante (Settings → Secrets and variables → Actions → Variables)}"
+          LATEST_BUILD=$(app-store-connect get-latest-build-number \
+            "$APP_STORE_APPLE_ID" \
+            --platform IOS)
+          BUILD_NUMBER=$((${LATEST_BUILD:-0} + 1))
+          echo "Next iOS build number: $BUILD_NUMBER"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Build IPA
+        run: |
+          flutter build ipa --release \
+            --build-name="$VERSION" \
+            --build-number="${{ steps.build-number.outputs.build_number }}" \
+            --export-options-plist="$HOME/export_options.plist"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lecoteaufleuri-ios
+          path: build/ios/ipa/*.ipa
+          retention-days: 14
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS (${{ needs.prepare.outputs.version }})
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    env:
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
+      MAC_INSTALLER_CERTIFICATE_P12_BASE64: ${{ secrets.MAC_INSTALLER_CERTIFICATE_P12_BASE64 }}
+      MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
+      APP_STORE_APPLE_ID: ${{ vars.APP_STORE_APPLE_ID }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.3
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Enable macOS desktop support
+        run: flutter config --enable-macos-desktop
+
+      - name: Setup Python (requis par codemagic-cli-tools)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install codemagic-cli-tools
+        run: pip install codemagic-cli-tools
+
+      - name: Initialize keychain
+        run: keychain initialize
+
+      - name: Fetch Mac App Store signing files (create if missing)
+        run: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type MAC_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --create
+
+      - name: Add Mac App Distribution certificate to keychain
+        run: keychain add-certificates
+
+      - name: Add Mac Installer Distribution certificate to keychain
+        # Cert installer account-wide, injecté depuis un secret base64 (pas
+        # généré par fetch-signing-files qui ne couvre que les certs liés à un
+        # bundle ID).
+        run: |
+          INSTALLER_P12="$RUNNER_TEMP/mac_installer.p12"
+          echo "$MAC_INSTALLER_CERTIFICATE_P12_BASE64" | base64 --decode > "$INSTALLER_P12"
+          keychain add-certificates \
+            -c "$INSTALLER_P12" \
+            --certificate-password=@env:MAC_INSTALLER_CERTIFICATE_PASSWORD
+
+      - name: Verify keychain contents
+        # 2 identités obligatoires : "Apple Distribution" (signe le .app) +
+        # "3rd Party Mac Developer Installer" (signe le .pkg).
+        run: |
+          security find-identity -v -p basic
+          N=$(security find-identity -v -p basic | tail -1 | grep -oE '[0-9]+' | head -1)
+          if [ "${N:-0}" -lt 2 ]; then
+            echo "ERROR: expected at least 2 identities, got ${N:-0}"
+            exit 1
+          fi
+
+      - name: Set up code signing on macOS Xcode project
+        run: xcode-project use-profiles --project macos/Runner.xcodeproj
+
+      - run: flutter pub get
+
+      - name: Cache CocoaPods (macOS)
+        uses: actions/cache@v4
+        with:
+          path: |
+            macos/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-macos-${{ runner.os }}-${{ hashFiles('macos/Podfile.lock') }}
+          restore-keys: pods-macos-${{ runner.os }}-
+
+      - name: Install CocoaPods dependencies (macOS)
+        run: find macos -name Podfile -execdir pod install \;
+
+      - name: Compute build number from App Store Connect (macOS)
+        # `--platform MAC_OS` CRUCIAL : build number macOS séparé d'iOS malgré
+        # Universal Purchase.
+        id: build-number
+        run: |
+          : "${APP_STORE_APPLE_ID:?Variable GitHub APP_STORE_APPLE_ID manquante (Settings → Secrets and variables → Actions → Variables)}"
+          LATEST_BUILD=$(app-store-connect get-latest-build-number \
+            "$APP_STORE_APPLE_ID" \
+            --platform MAC_OS)
+          BUILD_NUMBER=$((${LATEST_BUILD:-0} + 1))
+          echo "Next macOS build number: $BUILD_NUMBER"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Build macOS release
+        run: |
+          flutter build macos --release \
+            --build-name="$VERSION" \
+            --build-number="${{ steps.build-number.outputs.build_number }}"
+
+      - name: Package .app into signed .pkg
+        # productbuild (création) + productsign (signature) séparés pour avoir
+        # un message d'erreur précis. `--timestamp=none` évite l'appel
+        # timestamp.apple.com qui peut bloquer. `< /dev/null` ferme stdin.
+        run: |
+          set -euo pipefail
+
+          APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app bundle found"
+            ls -la build/macos/Build/Products/Release/ || true
+            exit 1
+          fi
+
+          INSTALLER_IDENTITY=$(security find-identity -v -p basic \
+            | grep "3rd Party Mac Developer Installer" \
+            | head -1 \
+            | sed -E 's/^[[:space:]]*[0-9]+\)[[:space:]]+[A-F0-9]+[[:space:]]+"(.*)"$/\1/')
+          if [ -z "$INSTALLER_IDENTITY" ]; then
+            echo "ERROR: no installer identity found"
+            security find-identity -v
+            exit 1
+          fi
+
+          PKG_NAME="lecoteaufleuri-macos-${VERSION}.pkg"
+          UNSIGNED_PKG="$RUNNER_TEMP/unsigned.pkg"
+
+          productbuild --component "$APP_PATH" /Applications "$UNSIGNED_PKG"
+          productsign \
+            --sign "$INSTALLER_IDENTITY" \
+            --timestamp=none \
+            "$UNSIGNED_PKG" "$PKG_NAME" < /dev/null
+          pkgutil --check-signature "$PKG_NAME"
+          echo "PKG_PATH=$PWD/$PKG_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload .pkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lecoteaufleuri-macos
+          path: ${{ env.PKG_PATH }}
+          retention-days: 14
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (${{ needs.prepare.outputs.version }})
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop support
+        run: flutter config --enable-windows-desktop
+
+      - run: flutter pub get
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          flutter build windows --release `
+            --build-name="$env:VERSION" `
+            --build-number="${{ github.run_number }}"
+
+      - name: Zip Windows build output
+        # Le .exe dépend des DLL Flutter et du dossier `data/` côte à côte
+        # → on zippe tout le dossier Release pour une archive autonome.
+        shell: pwsh
+        run: |
+          $zipName = "lecoteaufleuri-windows-$env:VERSION.zip"
+          $sourceDir = "build/windows/x64/runner/Release"
+          if (-not (Test-Path $sourceDir)) {
+            Write-Error "Build output directory not found: $sourceDir"
+            exit 1
+          }
+          Compress-Archive -Path "$sourceDir/*" -DestinationPath $zipName
+          "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lecoteaufleuri-windows
+          path: ${{ env.ZIP_NAME }}
+          retention-days: 14
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux (${{ needs.prepare.outputs.version }})
+    needs: prepare
+    # ubuntu-22.04 (glibc 2.35) plutôt que ubuntu-latest (24.04 / glibc 2.39)
+    # pour rester compatible avec des distros utilisateur un peu plus anciennes.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter Linux desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libgtk-3-dev \
+            clang \
+            cmake \
+            pkg-config \
+            liblzma-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Enable Linux desktop support
+        run: flutter config --enable-linux-desktop
+
+      - run: flutter pub get
+
+      - name: Build Linux release
+        run: |
+          flutter build linux --release \
+            --build-name="$VERSION" \
+            --build-number="${{ github.run_number }}"
+
+      - name: Assemble AppDir
+        run: |
+          BUNDLE_DIR="build/linux/x64/release/bundle"
+          APPDIR="AppDir"
+          mkdir -p "$APPDIR/usr/bin"
+          cp -r "$BUNDLE_DIR"/* "$APPDIR/usr/bin/"
+
+          cat > "$APPDIR/AppRun" <<'EOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          export LD_LIBRARY_PATH="$HERE/usr/bin/lib:${LD_LIBRARY_PATH}"
+          cd "$HERE/usr/bin" && exec ./lecoteaufleuri "$@"
+          EOF
+          chmod +x "$APPDIR/AppRun"
+
+          cat > "$APPDIR/lecoteaufleuri.desktop" <<EOF
+          [Desktop Entry]
+          Type=Application
+          Name=Le Coteau Fleuri
+          Exec=lecoteaufleuri
+          Icon=lecoteaufleuri
+          Categories=Utility;
+          Terminal=false
+          StartupWMClass=$BUNDLE_ID
+          EOF
+
+          cp assets/icon/app_icon.png "$APPDIR/lecoteaufleuri.png"
+
+      - name: Download appimagetool
+        run: |
+          wget -q -O appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+
+      - name: Build AppImage
+        # `--appimage-extract-and-run` : appimagetool est lui-même un AppImage
+        # qui requiert FUSE2 pour s'auto-monter, indisponible sur GHA.
+        run: |
+          APPIMAGE_NAME="lecoteaufleuri-linux-${VERSION}-x86_64.AppImage"
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "$APPIMAGE_NAME"
+          echo "APPIMAGE_NAME=$APPIMAGE_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload Linux AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lecoteaufleuri-linux
+          path: ${{ env.APPIMAGE_NAME }}
+          retention-days: 14
+          if-no-files-found: error
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # BUILD GATE — Sentinelle qui valide que tous les builds sont verts
+  # ═══════════════════════════════════════════════════════════════════════
+
+  build-gate:
+    name: All builds passed
+    needs: [build-android, build-ios, build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "✓ Tous les builds sont verts — release et publication autorisées"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # GITHUB RELEASE — Créée dès le gate franchi, AVANT les stores
+  # ═══════════════════════════════════════════════════════════════════════
+
+  release:
+    name: Create GitHub Release
+    # NB : `prepare` DOIT rester dans needs — needs.<job>.outputs n'est exposé
+    # qu'aux dépendances directes ; sans lui, la version serait vide.
+    needs: [prepare, build-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # On ne télécharge que les artifacts dont on attache des fichiers.
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "lecoteaufleuri-{android,windows,linux}"
+          path: artifacts/
+
+      - name: Create GitHub Release
+        run: |
+          # Schéma des assets : `lecoteaufleuri-<plateforme>-<version>.<ext>`,
+          # en minuscules. AAB, IPA et .pkg ne sont pas attachés : aucun n'est
+          # installable par un utilisateur, et ils partent sur les stores.
+          ASSETS=()
+          echo "Releasing assets:"
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            echo "  - $f"
+            ASSETS+=("$f")
+          done < <(find artifacts -type f \
+            \( -name '*.apk' -o -name '*.zip' -o -name '*.AppImage' \) | sort)
+
+          if [ ${#ASSETS[@]} -eq 0 ]; then
+            echo "ERROR: no release assets found"
+            exit 1
+          fi
+
+          # Notes = changelog de semantic-release. Sur un vrai tag, le commit
+          # taggé est "chore(release): X.Y.Z\n\n<changelog>" → son corps est le
+          # changelog Markdown. Ses liens pointent vers GitLab (dépôt canonique) :
+          # les SHAs sont identiques sur le miroir, on réécrit juste l'hôte.
+          # En workflow_dispatch (pas de tag), tag synthétique + notes auto
+          # GitHub, pour tester le pipeline sans collision avec un vrai tag.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            RELEASE_TAG="$GITHUB_REF_NAME"
+            CHANGELOG=$(git log -1 --pretty=%b)
+            CHANGELOG=$(sed 's|https://gitlab\.com/lecoteaufleuri/app|https://github.com/deadLocks21/lecoteaufleuri-app|g' <<< "$CHANGELOG")
+          else
+            RELEASE_TAG="dispatch-v${VERSION}-${{ github.run_number }}"
+            CHANGELOG=""
+          fi
+          echo "Release tag: $RELEASE_TAG"
+
+          if [ -n "${CHANGELOG//[[:space:]]/}" ]; then
+            NOTES_ARGS=(--notes "$CHANGELOG")
+          else
+            NOTES_ARGS=(--generate-notes)
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --title "Le Coteau Fleuri v$VERSION" \
+            "${NOTES_ARGS[@]}" \
+            "${ASSETS[@]}"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # PUBLISH — Uploads stores (déclenchés APRÈS la GitHub Release)
+  # ═══════════════════════════════════════════════════════════════════════
+
+  publish-android:
+    name: Publish Android to Play Store
+    needs: [release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python (requis par codemagic-cli-tools)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install codemagic-cli-tools
+        run: pip install codemagic-cli-tools
+
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lecoteaufleuri-android
+          path: artifacts/
+
+      - name: Publish to Play Store (internal track)
+        run: |
+          AAB_PATH=$(find artifacts -type f -name '*.aab' | head -1)
+          echo "Uploading: $AAB_PATH"
+          google-play bundles publish \
+            --credentials "@env:GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" \
+            --bundle "$AAB_PATH" \
+            --track internal \
+            --release-notes "@file:release_notes_android.json"
+
+  publish-ios:
+    name: Publish iOS to TestFlight
+    needs: [release]
+    # macOS obligatoire : `app-store-connect publish` passe par `altool`
+    # (composant de Xcode).
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    env:
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      APP_STORE_CONNECT_MAX_FIND_BUILD_WAIT: "90"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python (requis par codemagic-cli-tools)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install codemagic-cli-tools
+        run: pip install codemagic-cli-tools
+
+      - name: Download iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lecoteaufleuri-ios
+          path: artifacts/
+
+      - name: Publish to TestFlight (internal testers only)
+        # Upload seul : ni `--testflight` ni `--beta-group`. Les testeurs
+        # internes reçoivent automatiquement toute build traitée par Apple, sans
+        # review — rien qui puisse échouer entre l'upload et leur téléphone.
+        run: |
+          WHATS_NEW=$(jq -r '.[] | select(.language=="fr-FR") | .text' release_notes.json)
+          IPA_PATH=$(find artifacts -type f -name '*.ipa' | head -1)
+          echo "Uploading: $IPA_PATH"
+          app-store-connect publish \
+            --path "$IPA_PATH" \
+            --locale fr-FR \
+            --whats-new "$WHATS_NEW" \
+            --max-find-build-wait 90
+
+  publish-macos:
+    name: Publish macOS to TestFlight
+    needs: [release]
+    # 120 min : le traitement Apple des .pkg macOS est souvent plus lent que
+    # celui des .ipa.
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    env:
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      APP_STORE_CONNECT_MAX_FIND_BUILD_WAIT: "90"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python (requis par codemagic-cli-tools)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install codemagic-cli-tools
+        run: pip install codemagic-cli-tools
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lecoteaufleuri-macos
+          path: artifacts/
+
+      - name: Publish to TestFlight (internal testers only, macOS)
+        # Même logique qu'iOS : upload seul, pas de `--beta-group` (l'API refuse
+        # d'assigner un build à un groupe INTERNE).
+        run: |
+          WHATS_NEW=$(jq -r '.[] | select(.language=="fr-FR") | .text' release_notes.json)
+          PKG_PATH=$(find artifacts -type f -name '*.pkg' | head -1)
+          echo "Uploading: $PKG_PATH"
+          app-store-connect publish \
+            --path "$PKG_PATH" \
+            --locale fr-FR \
+            --whats-new "$WHATS_NEW" \
+            --max-find-build-wait 90
