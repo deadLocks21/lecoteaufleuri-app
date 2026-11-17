@@ -4,7 +4,9 @@ Application **Le Coteau Fleuri** — Flutter (Android · iOS · macOS · Windows
 
 - Identifiant : `com.lecoteaufleuri.app` (Android, iOS, macOS, Linux) · package Dart `lecoteaufleuri`.
 - Identité visuelle : `design/logo.jpg` du dépôt `lecoteaufleuri/dev`, décliné en icônes dans
-  `assets/icon/`.
+  `assets/icon/` et en palette dans `lib/ui/theme/app_theme_data.dart` (vert `#8CD35F`, bleu
+  `#29D3FF`, jaune `#FDD014`, anthracite `#515150`) : boutons dans le vert exact du logo, fonds
+  colorés atténués à 18 %, contrastes WCAG AA vérifiés par `test/unit/ui/app_theme_data_test.dart`.
 - Conventions reprises de `songbook-app` / `kidflix` / `motorz` : archi **hexagonale layer-first**
   (`core/domain`, `core/application`, `infrastructure`, `ui`), Riverpod 3 + codegen, imports
   absolus. Détails : [ARCHITECTURE.md](ARCHITECTURE.md).

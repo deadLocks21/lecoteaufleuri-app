@@ -26,7 +26,7 @@ lib/
 └── ui/
     ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/
     ├── widgets/              # *.widget.dart partagés : AuthGate
-    └── theme/                # AppThemeData (Material 3, seed = vert du logo)
+    └── theme/                # AppThemeData : palette du logo (vert, bleu, jaune, anthracite)
 test/
 ├── helpers/                  # Doublures et données partagées (FakeHttpAdapter, fixtures)
 ├── unit/                     # Tests unitaires (domain, application, infrastructure)
