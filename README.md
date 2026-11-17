@@ -39,7 +39,8 @@ L'app s'ouvre sur la connexion par numéro de mobile + code reçu par SMS.
   ```
 
   Le compte se crée côté API (`make console C="app:auth:create-user +33612345678 Prénom Nom"`)
-  et, en dev, le code s'y lit dans `var/log/dev.log` au lieu de partir par SMS.
+  et, en dev, le code s'y lit dans `var/log/dev.log` (il part aussi par SMS si httpsms est
+  configuré dans le `.env.local` de l'API).
 
 Avec Xcode 27, `flutter build ios --simulator` échoue sur `lipo -verify_arch` (build
 universel) : lancer plutôt `flutter run -d <simulateur>`, qui ne compile qu'une architecture.
