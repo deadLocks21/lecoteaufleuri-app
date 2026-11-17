@@ -56,18 +56,26 @@ class _PhoneEntryPageState extends ConsumerState<PhoneEntryPage> {
               padding: const EdgeInsets.all(24),
               shrinkWrap: true,
               children: [
-                Icon(
-                  Icons.local_florist,
-                  size: 64,
-                  color: theme.colorScheme.primary,
+                // Le logo porte déjà le nom du domaine : pas de titre en plus.
+                // Sa place est réservée (ratio de l'image) pour que la page ne
+                // saute pas quand il finit de se charger.
+                Center(
+                  child: SizedBox(
+                    width: 260,
+                    child: AspectRatio(
+                      aspectRatio: 948 / 523, // assets/brand/logo.png
+                      child: Image.asset(
+                        theme.brightness == Brightness.dark
+                            ? 'assets/brand/logo_dark.png'
+                            : 'assets/brand/logo.png',
+                        key: const Key('brandLogo'),
+                        fit: BoxFit.contain,
+                        semanticLabel: 'Domaine du Coteau Fleuri',
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Le Coteau Fleuri',
-                  style: theme.textTheme.headlineSmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 24),
                 Text(
                   'Saisissez votre numéro de mobile : '
                   'nous vous enverrons un code par SMS.',

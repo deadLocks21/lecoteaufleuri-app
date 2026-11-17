@@ -7,6 +7,9 @@ Application **Le Coteau Fleuri** — Flutter (Android · iOS · macOS · Windows
   `assets/icon/` et en palette dans `lib/ui/theme/app_theme_data.dart` (vert `#8CD35F`, bleu
   `#29D3FF`, jaune `#FDD014`, anthracite `#515150`) : boutons dans le vert exact du logo, fonds
   colorés atténués à 18 %, contrastes WCAG AA vérifiés par `test/unit/ui/app_theme_data_test.dart`.
+- Logo de l'écran de connexion : `assets/brand/logo.png` (fonds clairs) et `logo_dark.png` (texte
+  éclairci pour les fonds sombres), à fond transparent, générés depuis le logo source :
+  `python3 -I tool/logo_assets.py ../design/logo.jpg assets/brand` (macOS, conversion par `sips`).
 - Conventions reprises de `songbook-app` / `kidflix` / `motorz` : archi **hexagonale layer-first**
   (`core/domain`, `core/application`, `infrastructure`, `ui`), Riverpod 3 + codegen, imports
   absolus. Détails : [ARCHITECTURE.md](ARCHITECTURE.md).

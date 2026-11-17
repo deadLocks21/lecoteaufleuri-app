@@ -68,6 +68,26 @@ void main() {
     expect(await sessions.read(), isNull);
   });
 
+  testWidgets(
+    'la connexion affiche le logo, en version sombre sur fond sombre',
+    (tester) async {
+      String logoAsset() =>
+          (tester.widget<Image>(find.byKey(const Key('brandLogo'))).image
+                  as AssetImage)
+              .assetName;
+
+      await launch(tester);
+      expect(logoAsset(), 'assets/brand/logo.png');
+      expect(find.bySemanticsLabel('Domaine du Coteau Fleuri'), findsOneWidget);
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await tester.pumpAndSettle();
+
+      expect(logoAsset(), 'assets/brand/logo_dark.png');
+    },
+  );
+
   testWidgets('une session enregistrée ouvre directement l\'accueil', (
     tester,
   ) async {
