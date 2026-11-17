@@ -61,7 +61,7 @@ class _PhoneEntryPageState extends ConsumerState<PhoneEntryPage> {
                 // saute pas quand il finit de se charger.
                 Center(
                   child: SizedBox(
-                    width: 260,
+                    width: 200,
                     child: AspectRatio(
                       aspectRatio: 948 / 523, // assets/brand/logo.png
                       child: Image.asset(
