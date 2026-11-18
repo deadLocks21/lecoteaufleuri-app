@@ -31,6 +31,8 @@ dart run build_runner watch -d       # codegen Riverpod (*.g.dart), dès le prem
 L'app s'ouvre sur la connexion par numéro de mobile + code reçu par SMS.
 
 - **Sans backend** (par défaut) : compte de démo `06 12 34 56 78`, code `000000`.
+  Il est admin, pour essayer l'administration des comptes (comptes de démo en
+  mémoire).
 - **Contre l'API** (`lecoteaufleuri/api`) : passer son origine à la compilation.
 
   ```sh

@@ -9,23 +9,25 @@ lib/
 ├── main.dart                 # Point d'entrée : ProviderScope + MaterialApp (racine : AuthGate)
 ├── core/
 │   ├── domain/               # Domain (Dart pur)
-│   │   ├── model/            # PhoneNumber, OtpCode, User, Session
-│   │   ├── exceptions/       # AuthException + AuthErrorCode
-│   │   └── services/         # Ports : AuthRepository, SessionRepository
+│   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft
+│   │   ├── exceptions/       # AuthException, AccountException (+ codes)
+│   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository
 │   └── application/          # Application (Dart pur)
 │       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto
-│       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, Logout
-│       ├── services/         # AuthApplicationService (regroupe les cas d'usage)
+│       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, RefreshSession, Logout ;
+│       │                     # accounts.usecases (ListAccounts, SaveAccount, DeleteAccount…)
+│       ├── services/         # AuthApplicationService, AccountsApplicationService
 │       └── session_state.dart  # Machine d'états de la session
 ├── infrastructure/
-│   ├── auth/                 # dio.auth.repository, in_memory.auth.repository
+│   ├── auth/                 # dio.auth.repository, in_memory.auth.repository, user.codec
+│   ├── accounts/             # dio.account.repository, in_memory.account.repository
 │   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
-│   ├── http/                 # AuthInterceptor (Bearer + 401), chemins et codes d'erreur de l'API
+│   ├── http/                 # AuthInterceptor (Bearer, 401, 403), chemins et codes d'erreur de l'API
 │   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
-│                             # dont SessionController
+│                             # dont SessionController et AccountsController
 └── ui/
-    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/
-    ├── widgets/              # *.widget.dart partagés : AuthGate
+    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/, admin/
+    ├── widgets/              # *.widget.dart partagés : AuthGate ; phone_display
     └── theme/                # AppThemeData : palette du logo (vert, bleu, jaune, anthracite)
 test/
 ├── helpers/                  # Doublures et données partagées (FakeHttpAdapter, fixtures)
@@ -51,6 +53,28 @@ Même parcours que songbook, motorz et kidflix, contre l'API (`API.md` du dépô
 `AuthGate` choisit l'écran d'après `SessionState` (`SessionRestoring`, `Anonymous`,
 `OtpRequested`, `Authenticated`). Les écrans ne voient que des DTOs : le JWT ne quitte
 jamais l'infrastructure.
+
+## Droits et espaces
+
+Qui voit quoi est décidé dans `ACCES.md` du dépôt `lecoteaufleuri/dev`
+(`../ACCES.md` dans l'espace de travail). **L'app adapte ses écrans, l'API
+décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
+
+- **Les droits se relisent** (`RefreshSessionUseCase`, `GET /api/me`) au
+  démarrage, à chaque retour au premier plan (`AuthGate`) et après un
+  `403 forbidden` (`AuthInterceptor` → `SessionController.refresh()`). Sans
+  réseau, la session garde ce qu'elle savait.
+- **L'accueil montre un espace par lien** du compte avec l'association, pas un
+  écran par rôle : pour l'instant, l'espace « Administration › Comptes » des
+  admins. Les séjours et les enfants viendront avec leur contexte.
+- **Rien ne survit à une session fermée ou à des droits retirés** : `AuthGate`
+  referme alors tout écran ouvert par-dessus l'accueil, et les données de ces
+  écrans vivent dans des providers sans `keepAlive` (ex. `AccountsController`),
+  libérés avec eux.
+- **Administration des comptes** (`ui/pages/admin/`) : liste avec recherche,
+  création, correction, statut d'admin, coupure des sessions, suppression
+  (réversible côté serveur). Le dernier admin garde son statut ; on ne supprime
+  pas son propre compte depuis l'app.
 
 ## Dépendances
 
