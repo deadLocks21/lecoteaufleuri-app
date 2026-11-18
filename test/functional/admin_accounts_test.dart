@@ -115,6 +115,34 @@ void main() {
     );
   });
 
+  testWidgets(
+    'seul le champ vide est signalé, et l\'erreur part dès qu\'on le remplit',
+    (tester) async {
+      await launchAs(tester, demo);
+      await openAccounts(tester);
+      await tester.tap(find.byKey(const Key('newAccountButton')));
+      await tester.pumpAndSettle();
+
+      await fillAccount(
+        tester,
+        phone: '07 11 22 33 44',
+        firstName: '',
+        lastName: 'Petit',
+      );
+
+      expect(find.text('Le prénom est obligatoire.'), findsOneWidget);
+      expect(find.text('Le nom est obligatoire.'), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const Key('accountFirstNameField')),
+        'Lou',
+      );
+      await tester.pump();
+
+      expect(find.text('Le prénom est obligatoire.'), findsNothing);
+    },
+  );
+
   testWidgets('la recherche filtre par nom ou par numéro', (tester) async {
     await launchAs(tester, demo);
     await openAccounts(tester);

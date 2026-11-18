@@ -75,6 +75,12 @@ class _AccountEditPageState extends ConsumerState<AccountEditPage> {
     return error == null;
   }
 
+  /// Une erreur ne survit pas à la correction : dès qu'on retouche la saisie,
+  /// elle disparaît jusqu'au prochain envoi.
+  void _clearError(String _) {
+    if (_error != null) setState(() => _error = null);
+  }
+
   /// Ses propres changements (nom, statut) se voient tout de suite à l'accueil.
   void _refreshSelf() {
     if (_isSelf) {
@@ -189,10 +195,17 @@ class _AccountEditPageState extends ConsumerState<AccountEditPage> {
       AccountErrorCode.phoneTaken => accountErrorMessage(error!),
       _ => null,
     };
-    final nameError = error == AccountErrorCode.invalidName
-        ? accountErrorMessage(error!)
+    // Seul le champ vide est signalé ; si le serveur refuse des noms que l'app
+    // jugeait remplis, le message général prend le relais.
+    final invalidName = error == AccountErrorCode.invalidName;
+    final firstNameError = invalidName && _firstName.text.trim().isEmpty
+        ? 'Le prénom est obligatoire.'
         : null;
-    final otherError = phoneError == null && nameError == null && error != null
+    final lastNameError = invalidName && _lastName.text.trim().isEmpty
+        ? 'Le nom est obligatoire.'
+        : null;
+    final fieldError = phoneError ?? firstNameError ?? lastNameError;
+    final otherError = fieldError == null && error != null
         ? accountErrorMessage(error)
         : null;
 
@@ -210,6 +223,7 @@ class _AccountEditPageState extends ConsumerState<AccountEditPage> {
                 key: const Key('accountPhoneField'),
                 controller: _phone,
                 enabled: !_busy,
+                onChanged: _clearError,
                 keyboardType: TextInputType.phone,
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[\d\s.\-+()]')),
@@ -227,11 +241,12 @@ class _AccountEditPageState extends ConsumerState<AccountEditPage> {
                 key: const Key('accountFirstNameField'),
                 controller: _firstName,
                 enabled: !_busy,
+                onChanged: _clearError,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   labelText: 'Prénom',
                   border: const OutlineInputBorder(),
-                  errorText: nameError,
+                  errorText: firstNameError,
                 ),
               ),
               const SizedBox(height: 16),
@@ -239,11 +254,12 @@ class _AccountEditPageState extends ConsumerState<AccountEditPage> {
                 key: const Key('accountLastNameField'),
                 controller: _lastName,
                 enabled: !_busy,
+                onChanged: _clearError,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   labelText: 'Nom',
                   border: const OutlineInputBorder(),
-                  errorText: nameError,
+                  errorText: lastNameError,
                 ),
               ),
               if (otherError != null) ...[
