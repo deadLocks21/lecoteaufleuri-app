@@ -34,6 +34,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Textes des widgets Material en français (calendriers, dialogues).
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

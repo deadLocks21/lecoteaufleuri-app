@@ -189,7 +189,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('adminSwitch')));
     await tester.pumpAndSettle();
-    await tester.pageBack();
+    // `pageBack()` cherche l'infobulle anglaise « Back » ; l'app est en français.
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(Key('account-${demo.id}')));

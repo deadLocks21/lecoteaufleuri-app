@@ -75,6 +75,9 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   création, correction, statut d'admin, coupure des sessions, suppression
   (réversible côté serveur). Le dernier admin garde son statut ; on ne supprime
   pas son propre compte depuis l'app.
+- **L'app est en français**, widgets Material compris (`flutter_localizations`) :
+  en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on
+  touche le `BackButton`.
 
 ## Dépendances
 
