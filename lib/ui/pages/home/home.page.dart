@@ -3,14 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lecoteaufleuri/core/application/session_state.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/session.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/accounts.page.dart';
+import 'package:lecoteaufleuri/ui/pages/admin/stays.page.dart';
 
 /// Accueil, réservé aux comptes connectés (cf. `AuthGate`).
 ///
 /// Il montre un espace par lien du compte avec l'association, et non un écran
 /// par rôle : une même personne peut être admin, parent et animatrice. Pour
-/// l'instant, seul l'espace d'administration existe ; les séjours et les
-/// enfants viendront avec leur contexte. Ce que l'accueil n'affiche pas reste
-/// de toute façon refusé par l'API.
+/// l'instant, seul l'espace d'administration existe (séjours et comptes) ;
+/// les séjours encadrés et les enfants viendront avec leurs liens. Ce que
+/// l'accueil n'affiche pas reste de toute façon refusé par l'API.
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
@@ -47,6 +48,15 @@ class HomePage extends ConsumerWidget {
               if (user?.isAdmin ?? false) ...[
                 Text('Administration', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
+                _SpaceCard(
+                  key: const Key('staysSpace'),
+                  icon: Icons.cabin_outlined,
+                  title: 'Séjours',
+                  subtitle: 'Créer un séjour, voir ceux de l\'association',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const StaysPage()),
+                  ),
+                ),
                 _SpaceCard(
                   key: const Key('accountsSpace'),
                   icon: Icons.manage_accounts_outlined,

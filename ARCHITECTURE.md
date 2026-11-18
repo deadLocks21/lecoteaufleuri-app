@@ -9,25 +9,27 @@ lib/
 ├── main.dart                 # Point d'entrée : ProviderScope + MaterialApp (racine : AuthGate)
 ├── core/
 │   ├── domain/               # Domain (Dart pur)
-│   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft
-│   │   ├── exceptions/       # AuthException, AccountException (+ codes)
-│   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository
+│   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft, Stay, StayDraft
+│   │   ├── exceptions/       # AuthException, AccountException, StayException (+ codes)
+│   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository, StayRepository
 │   └── application/          # Application (Dart pur)
-│       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto
+│       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto
 │       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, RefreshSession, Logout ;
-│       │                     # accounts.usecases (ListAccounts, SaveAccount, DeleteAccount…)
-│       ├── services/         # AuthApplicationService, AccountsApplicationService
+│       │                     # accounts.usecases (ListAccounts, SaveAccount, DeleteAccount…) ;
+│       │                     # stays.usecases (ListStays, CreateStay)
+│       ├── services/         # AuthApplicationService, AccountsApplicationService, StaysApplicationService
 │       └── session_state.dart  # Machine d'états de la session
 ├── infrastructure/
 │   ├── auth/                 # dio.auth.repository, in_memory.auth.repository, user.codec
 │   ├── accounts/             # dio.account.repository, in_memory.account.repository
+│   ├── stays/                # dio.stay.repository, in_memory.stay.repository, stay.codec
 │   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
 │   ├── http/                 # AuthInterceptor (Bearer, 401, 403), chemins et codes d'erreur de l'API
 │   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
-│                             # dont SessionController et AccountsController
+│                             # dont SessionController, AccountsController et StaysController
 └── ui/
     ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/, admin/
-    ├── widgets/              # *.widget.dart partagés : AuthGate ; phone_display
+    ├── widgets/              # *.widget.dart partagés : AuthGate ; phone_display, stay_display
     └── theme/                # AppThemeData : palette du logo (vert, bleu, jaune, anthracite)
 test/
 ├── helpers/                  # Doublures et données partagées (FakeHttpAdapter, fixtures)
@@ -65,8 +67,9 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   `403 forbidden` (`AuthInterceptor` → `SessionController.refresh()`). Sans
   réseau, la session garde ce qu'elle savait.
 - **L'accueil montre un espace par lien** du compte avec l'association, pas un
-  écran par rôle : pour l'instant, l'espace « Administration › Comptes » des
-  admins. Les séjours et les enfants viendront avec leur contexte.
+  écran par rôle : pour l'instant, l'espace « Administration » des admins
+  (séjours et comptes). Les séjours encadrés et les enfants viendront avec
+  leurs liens.
 - **Rien ne survit à une session fermée ou à des droits retirés** : `AuthGate`
   referme alors tout écran ouvert par-dessus l'accueil, et les données de ces
   écrans vivent dans des providers sans `keepAlive` (ex. `AccountsController`),
@@ -75,6 +78,11 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   création, correction, statut d'admin, coupure des sessions, suppression
   (réversible côté serveur). Le dernier admin garde son statut ; on ne supprime
   pas son propre compte depuis l'app.
+- **Administration des séjours** (`ui/pages/admin/`) : liste du dernier
+  commencé (ou à venir) au plus ancien, et création (nom, ACM ou non, dates
+  choisies au calendrier). Les jours voyagent en `AAAA-MM-JJ` et vivent dans
+  l'app à minuit UTC (`calendarDay`) : seuls l'année, le mois et le jour
+  comptent.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on
   touche le `BackButton`.

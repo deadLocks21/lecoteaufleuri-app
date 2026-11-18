@@ -16,4 +16,7 @@ abstract final class ApiEndpoints {
   static String adminUserAdmin(String id) => '${adminUser(id)}/admin';
   static String adminUserRevokeSessions(String id) =>
       '${adminUser(id)}/revoke-sessions';
+
+  /// Administration des séjours (admins seulement).
+  static const adminStays = '/api/admin/stays';
 }
