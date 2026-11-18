@@ -8,6 +8,9 @@ import 'package:lecoteaufleuri/core/domain/services/auth.repository.dart';
 /// Connexion factice, sans backend (dev, web, tests) : seul le compte de démo
 /// existe, et son code est toujours `000000`. Tout autre numéro est refusé
 /// comme un compte inconnu, exactement comme le ferait l'API.
+///
+/// Le compte de démo est admin, pour qu'on puisse essayer l'administration
+/// des comptes sans serveur.
 class InMemoryAuthRepository implements AuthRepository {
   /// `06 12 34 56 78`.
   static const demoPhoneNumber = '+33612345678';
@@ -18,6 +21,7 @@ class InMemoryAuthRepository implements AuthRepository {
     phoneNumber: demoPhoneNumber,
     firstName: 'Camille',
     lastName: 'Démo',
+    isAdmin: true,
   );
 
   final DateTime Function() _now;
@@ -43,6 +47,9 @@ class InMemoryAuthRepository implements AuthRepository {
       user: demoUser,
     );
   }
+
+  @override
+  Future<User> currentUser() async => demoUser;
 
   void _requireDemoAccount(PhoneNumber phone) {
     if (phone.e164 != demoPhoneNumber) {

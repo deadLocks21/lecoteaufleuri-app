@@ -1,5 +1,6 @@
 import 'package:lecoteaufleuri/core/application/services/auth_application.service.dart';
 import 'package:lecoteaufleuri/core/application/usecases/logout.usecase.dart';
+import 'package:lecoteaufleuri/core/application/usecases/refresh_session.usecase.dart';
 import 'package:lecoteaufleuri/core/application/usecases/request_otp.usecase.dart';
 import 'package:lecoteaufleuri/core/application/usecases/restore_session.usecase.dart';
 import 'package:lecoteaufleuri/core/application/usecases/verify_otp.usecase.dart';
@@ -17,6 +18,7 @@ AuthApplicationService authService(Ref ref) {
     requestOtp: RequestOtpUseCase(auth),
     verifyOtp: VerifyOtpUseCase(auth, sessions),
     restoreSession: RestoreSessionUseCase(sessions),
+    refreshSession: RefreshSessionUseCase(auth, sessions),
     logout: LogoutUseCase(sessions),
   );
 }

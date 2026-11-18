@@ -56,7 +56,7 @@ final class SessionControllerProvider
   }
 }
 
-String _$sessionControllerHash() => r'1f8545105899bdaa298c9260f6a3eceddd6a7055';
+String _$sessionControllerHash() => r'40afdd0faaf2068b3072b514c625867c40d6828b';
 
 /// Pilote la [SessionState] : seul point de contact entre l'UI et les cas
 /// d'usage de connexion.

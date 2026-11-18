@@ -3,13 +3,16 @@ import 'package:lecoteaufleuri/core/domain/exceptions/auth.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/otp_code.dart';
 import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
 import 'package:lecoteaufleuri/core/domain/model/session.dart';
+import 'package:lecoteaufleuri/core/domain/model/user.dart';
 import 'package:lecoteaufleuri/core/domain/services/auth.repository.dart';
+import 'package:lecoteaufleuri/infrastructure/auth/user.codec.dart';
 import 'package:lecoteaufleuri/infrastructure/http/api_endpoints.dart';
 import 'package:lecoteaufleuri/infrastructure/http/error_code.dart';
 import 'package:lecoteaufleuri/infrastructure/session/session.codec.dart';
 
 /// [AuthRepository] sur HTTP : `POST /api/auth/request-otp` puis
-/// `POST /api/auth/verify-otp` (cf. `API.md` du dépôt api).
+/// `POST /api/auth/verify-otp`, et `GET /api/me` pour relire le compte
+/// (cf. `API.md` du dépôt api).
 ///
 /// Toute erreur devient une [AuthException], en lisant d'abord le `code`
 /// machine de la réponse, puis en distinguant « rien n'a répondu » (réseau) de
@@ -38,6 +41,21 @@ class DioAuthRepository implements AuthRepository {
     });
     try {
       return SessionCodec.fromJson(body);
+    } on FormatException {
+      throw const AuthException(AuthErrorCode.badServerUrl);
+    }
+  }
+
+  @override
+  Future<User> currentUser() async {
+    final Response<dynamic> response;
+    try {
+      response = await _dio.get<dynamic>(ApiEndpoints.me);
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+    try {
+      return UserCodec.fromJson(response.data);
     } on FormatException {
       throw const AuthException(AuthErrorCode.badServerUrl);
     }

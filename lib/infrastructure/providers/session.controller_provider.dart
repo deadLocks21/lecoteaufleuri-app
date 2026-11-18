@@ -33,6 +33,19 @@ class SessionController extends _$SessionController {
       // Aucune session, ou stockage illisible : retour à la connexion.
       _ => const Anonymous(),
     };
+    // L'accueil s'ouvre sur ce qu'on sait ; les droits du moment suivent.
+    if (state is Authenticated) await refresh();
+  }
+
+  /// Relit le compte auprès du serveur : ses droits ont pu changer depuis la
+  /// connexion (admin nommé ou retiré…). Sans réseau, on garde ce qu'on sait ;
+  /// un jeton refusé passe par [expire] (cf. `AuthInterceptor`).
+  Future<void> refresh() async {
+    if (state is! Authenticated) return;
+    final (session, _) = await _run(_service.refreshSession.execute);
+    if (session != null && ref.mounted && state is Authenticated) {
+      state = Authenticated(session);
+    }
   }
 
   Future<AuthErrorCode?> requestOtp(

@@ -11,7 +11,8 @@ part of 'dio.provider.dart';
 /// Client HTTP partagé par tous les `dio.*.repository.dart`.
 ///
 /// Son [AuthInterceptor] pose le Bearer et, sur `401 invalid_token`, demande au
-/// [SessionController] de relancer la connexion. Le contrôleur est lu
+/// [SessionController] de relancer la connexion ; sur `403 forbidden`, de
+/// relire les droits du compte. Le contrôleur est lu
 /// paresseusement (`ref.read` dans le callback) : le résoudre à la construction
 /// bouclerait (`dio → sessionController → authService → authRepository → dio`).
 
@@ -21,7 +22,8 @@ final dioProvider = DioProvider._();
 /// Client HTTP partagé par tous les `dio.*.repository.dart`.
 ///
 /// Son [AuthInterceptor] pose le Bearer et, sur `401 invalid_token`, demande au
-/// [SessionController] de relancer la connexion. Le contrôleur est lu
+/// [SessionController] de relancer la connexion ; sur `403 forbidden`, de
+/// relire les droits du compte. Le contrôleur est lu
 /// paresseusement (`ref.read` dans le callback) : le résoudre à la construction
 /// bouclerait (`dio → sessionController → authService → authRepository → dio`).
 
@@ -30,7 +32,8 @@ final class DioProvider extends $FunctionalProvider<Dio, Dio, Dio>
   /// Client HTTP partagé par tous les `dio.*.repository.dart`.
   ///
   /// Son [AuthInterceptor] pose le Bearer et, sur `401 invalid_token`, demande au
-  /// [SessionController] de relancer la connexion. Le contrôleur est lu
+  /// [SessionController] de relancer la connexion ; sur `403 forbidden`, de
+  /// relire les droits du compte. Le contrôleur est lu
   /// paresseusement (`ref.read` dans le callback) : le résoudre à la construction
   /// bouclerait (`dio → sessionController → authService → authRepository → dio`).
   DioProvider._()
@@ -66,4 +69,4 @@ final class DioProvider extends $FunctionalProvider<Dio, Dio, Dio>
   }
 }
 
-String _$dioHash() => r'5ab3e50e926b07ceff84409b4577e5576c267ebf';
+String _$dioHash() => r'a695cca34e08d6e3c762297457af7820cbb29fcf';

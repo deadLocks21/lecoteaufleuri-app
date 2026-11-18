@@ -6,12 +6,14 @@ class UserDto {
   final String phoneNumber;
   final String firstName;
   final String lastName;
+  final bool isAdmin;
 
   const UserDto({
     required this.id,
     required this.phoneNumber,
     required this.firstName,
     required this.lastName,
+    this.isAdmin = false,
   });
 
   factory UserDto.fromDomain(User user) => UserDto(
@@ -19,6 +21,7 @@ class UserDto {
     phoneNumber: user.phoneNumber,
     firstName: user.firstName,
     lastName: user.lastName,
+    isAdmin: user.isAdmin,
   );
 
   String get fullName => '$firstName $lastName'.trim();
@@ -30,8 +33,10 @@ class UserDto {
           other.id == id &&
           other.phoneNumber == phoneNumber &&
           other.firstName == firstName &&
-          other.lastName == lastName;
+          other.lastName == lastName &&
+          other.isAdmin == isAdmin;
 
   @override
-  int get hashCode => Object.hash(id, phoneNumber, firstName, lastName);
+  int get hashCode =>
+      Object.hash(id, phoneNumber, firstName, lastName, isAdmin);
 }

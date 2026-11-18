@@ -142,4 +142,33 @@ void main() {
       );
     });
   });
+
+  group('currentUser', () {
+    test('relit le compte sur /api/me', () async {
+      final adapter = FakeHttpAdapter(
+        (_) => FakeHttpAdapter.json({
+          'id': '0a5c0000-0000-4000-8000-0000000000ff',
+          'phone_number': '+33612345678',
+          'first_name': 'Camille',
+          'last_name': 'Martin',
+          'is_admin': true,
+        }),
+      );
+
+      final user = await DioAuthRepository(dioWith(adapter)).currentUser();
+
+      expect(user.isAdmin, isTrue);
+      expect(adapter.requests.single.method, 'GET');
+      expect(adapter.requests.single.path, '/api/me');
+    });
+
+    test('un corps qui n\'est pas un compte n\'est pas celui de l\'API', () {
+      expect(
+        DioAuthRepository(
+          dioWith(FakeHttpAdapter((_) => FakeHttpAdapter.json({'oops': 1}))),
+        ).currentUser(),
+        failsWith(AuthErrorCode.badServerUrl),
+      );
+    });
+  });
 }

@@ -2,11 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lecoteaufleuri/core/application/dtos/user.dto.dart';
 import 'package:lecoteaufleuri/core/application/session_state.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/auth.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/otp_code.dart';
 import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
 import 'package:lecoteaufleuri/core/domain/model/session.dart';
+import 'package:lecoteaufleuri/core/domain/model/user.dart';
 import 'package:lecoteaufleuri/core/domain/services/auth.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/auth/in_memory.auth.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/api_base_url.provider.dart';
@@ -33,6 +35,13 @@ class CountingAuthRepository implements AuthRepository {
   @override
   Future<Session> verifyOtp(PhoneNumber phone, OtpCode code) =>
       _inner.verifyOtp(phone, code);
+
+  /// Ce que `GET /api/me` renverra ; `null` : le serveur est injoignable.
+  User? current = camille;
+
+  @override
+  Future<User> currentUser() async =>
+      current ?? (throw const AuthException(AuthErrorCode.network));
 }
 
 void main() {
@@ -76,6 +85,43 @@ void main() {
     await start();
 
     expect(state(), isA<Authenticated>());
+  });
+
+  test('relit au démarrage les droits du compte', () async {
+    sessions = InMemorySessionRepository(
+      sessionExpiringAt(DateTime.now().add(const Duration(days: 1))),
+    );
+    auth.current = camille.copyWith(isAdmin: true);
+
+    await start();
+
+    expect(
+      state(),
+      isA<Authenticated>().having(
+        (s) => s.session.user.isAdmin,
+        'isAdmin',
+        isTrue,
+      ),
+    );
+    expect((await sessions.read())?.user.isAdmin, isTrue);
+  });
+
+  test('sans réseau, garde la session telle qu\'elle était', () async {
+    sessions = InMemorySessionRepository(
+      sessionExpiringAt(DateTime.now().add(const Duration(days: 1))),
+    );
+    auth.current = null;
+
+    await start();
+
+    expect(
+      state(),
+      isA<Authenticated>().having(
+        (s) => s.session.user,
+        'user',
+        UserDto.fromDomain(camille),
+      ),
+    );
   });
 
   test('sans session, attend un numéro', () async {
@@ -155,6 +201,36 @@ void main() {
       );
     },
   );
+
+  test('un 403 forbidden reçu par Dio relit les droits', () async {
+    await start(
+      overrides: [apiBaseUrlProvider.overrideWithValue('http://api.test')],
+    );
+    await logIn();
+    auth.current = camille;
+    final dio = container.read(dioProvider)
+      ..httpClientAdapter = FakeHttpAdapter(
+        (_) => FakeHttpAdapter.json({
+          'error': 'Vous n\'avez pas accès à cette action.',
+          'code': 'forbidden',
+        }, status: 403),
+      );
+
+    await expectLater(
+      dio.get<dynamic>('/api/admin/users'),
+      throwsA(isA<DioException>()),
+    );
+    await pumpEventQueue();
+
+    expect(
+      state(),
+      isA<Authenticated>().having(
+        (s) => s.session.user.isAdmin,
+        'isAdmin',
+        isFalse,
+      ),
+    );
+  });
 
   test('un 401 invalid_token reçu par Dio relance la connexion', () async {
     await start(

@@ -12,7 +12,8 @@ part 'dio.provider.g.dart';
 /// Client HTTP partagé par tous les `dio.*.repository.dart`.
 ///
 /// Son [AuthInterceptor] pose le Bearer et, sur `401 invalid_token`, demande au
-/// [SessionController] de relancer la connexion. Le contrôleur est lu
+/// [SessionController] de relancer la connexion ; sur `403 forbidden`, de
+/// relire les droits du compte. Le contrôleur est lu
 /// paresseusement (`ref.read` dans le callback) : le résoudre à la construction
 /// bouclerait (`dio → sessionController → authService → authRepository → dio`).
 @Riverpod(keepAlive: true)
@@ -31,6 +32,8 @@ Dio dio(Ref ref) {
       sessions: ref.watch(sessionRepositoryProvider),
       onUnauthorized: () =>
           unawaited(ref.read(sessionControllerProvider.notifier).expire()),
+      onForbidden: () =>
+          unawaited(ref.read(sessionControllerProvider.notifier).refresh()),
     ),
   );
   return dio;

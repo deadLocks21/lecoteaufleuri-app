@@ -10,6 +10,7 @@ void main() {
   late FakeHttpAdapter adapter;
   late InMemorySessionRepository sessions;
   late int unauthorizedSignals;
+  late int forbiddenSignals;
   late Dio dio;
 
   setUp(() {
@@ -18,11 +19,13 @@ void main() {
       sessionExpiringAt(DateTime.utc(2026, 1, 31)),
     );
     unauthorizedSignals = 0;
+    forbiddenSignals = 0;
     dio = dioWith(adapter)
       ..interceptors.add(
         AuthInterceptor(
           sessions: sessions,
           onUnauthorized: () => unauthorizedSignals++,
+          onForbidden: () => forbiddenSignals++,
         ),
       );
   });
@@ -61,6 +64,20 @@ void main() {
       throwsA(isA<DioException>()),
     );
     expect(unauthorizedSignals, 1);
+  });
+
+  test('signale des droits retirés, sans avaler l\'erreur', () async {
+    adapter.respond = (_) => FakeHttpAdapter.json({
+      'error': 'Vous n\'avez pas accès à cette action.',
+      'code': 'forbidden',
+    }, status: 403);
+
+    await expectLater(
+      dio.get<dynamic>('/api/admin/users'),
+      throwsA(isA<DioException>()),
+    );
+    expect(forbiddenSignals, 1);
+    expect(unauthorizedSignals, 0);
   });
 
   test('un mauvais code OTP n\'est pas une session morte', () async {

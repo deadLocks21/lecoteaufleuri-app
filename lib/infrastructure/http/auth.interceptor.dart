@@ -3,8 +3,10 @@ import 'package:lecoteaufleuri/core/domain/services/session.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/http/api_endpoints.dart';
 import 'package:lecoteaufleuri/infrastructure/http/error_code.dart';
 
-/// Ajoute `Authorization: Bearer <jwt>` à chaque requête protégée, et signale
-/// tout `401 invalid_token` via [onUnauthorized] pour relancer la connexion.
+/// Ajoute `Authorization: Bearer <jwt>` à chaque requête protégée, signale
+/// tout `401 invalid_token` via [onUnauthorized] pour relancer la connexion,
+/// et tout `403 forbidden` via [onForbidden] : les droits ont changé, l'app
+/// les relit pour mettre ses écrans à jour.
 ///
 /// Les routes `/api/auth/*` sont exclues dans les deux sens : elles sont
 /// publiques, et `verify-otp` répond aussi 401 (`invalid_otp`) à un mauvais
@@ -16,12 +18,15 @@ import 'package:lecoteaufleuri/infrastructure/http/error_code.dart';
 class AuthInterceptor extends Interceptor {
   final SessionRepository _sessions;
   final void Function()? _onUnauthorized;
+  final void Function()? _onForbidden;
 
   AuthInterceptor({
     required SessionRepository sessions,
     void Function()? onUnauthorized,
+    void Function()? onForbidden,
   }) : _sessions = sessions,
-       _onUnauthorized = onUnauthorized;
+       _onUnauthorized = onUnauthorized,
+       _onForbidden = onForbidden;
 
   @override
   Future<void> onRequest(
@@ -39,10 +44,13 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (!err.requestOptions.path.startsWith(ApiEndpoints.authPrefix) &&
-        err.response?.statusCode == 401 &&
-        readErrorCode(err.response) == 'invalid_token') {
-      _onUnauthorized?.call();
+    if (!err.requestOptions.path.startsWith(ApiEndpoints.authPrefix)) {
+      switch ((err.response?.statusCode, readErrorCode(err.response))) {
+        case (401, 'invalid_token'):
+          _onUnauthorized?.call();
+        case (403, 'forbidden'):
+          _onForbidden?.call();
+      }
     }
     handler.next(err);
   }
