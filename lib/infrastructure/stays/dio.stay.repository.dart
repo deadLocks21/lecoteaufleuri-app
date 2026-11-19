@@ -32,28 +32,34 @@ class DioStayRepository implements StayRepository {
       _detail(await _send('GET', ApiEndpoints.stay(stayId)));
 
   @override
-  Future<StayDetail> nameDirector(String stayId, PhoneNumber phone) async =>
-      _detail(
-        await _send(
-          'PUT',
-          ApiEndpoints.stayDirector(stayId),
-          data: {'phone_number': phone.e164},
-        ),
-      );
+  Future<StayDetail> nameDirector(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+  }) async => _detail(
+    await _send(
+      'PUT',
+      ApiEndpoints.stayDirector(stayId),
+      data: _staff(phone, newAccount),
+    ),
+  );
 
   @override
   Future<StayDetail> removeDirector(String stayId) async =>
       _detail(await _send('DELETE', ApiEndpoints.stayDirector(stayId)));
 
   @override
-  Future<StayDetail> addDeputy(String stayId, PhoneNumber phone) async =>
-      _detail(
-        await _send(
-          'POST',
-          ApiEndpoints.stayDeputies(stayId),
-          data: {'phone_number': phone.e164},
-        ),
-      );
+  Future<StayDetail> addDeputy(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+  }) async => _detail(
+    await _send(
+      'POST',
+      ApiEndpoints.stayDeputies(stayId),
+      data: _staff(phone, newAccount),
+    ),
+  );
 
   @override
   Future<StayDetail> removeDeputy(String stayId, String accountId) async =>
@@ -64,6 +70,18 @@ class DioStayRepository implements StayRepository {
   @override
   Future<List<MyStay>> mine() async =>
       _list(await _send('GET', ApiEndpoints.myStays), StayCodec.myStayFromJson);
+
+  /// Le corps d'une nomination : le numéro, et les noms du compte à créer.
+  static Map<String, dynamic> _staff(
+    PhoneNumber phone,
+    NewStaffAccount? newAccount,
+  ) => {
+    'phone_number': phone.e164,
+    if (newAccount != null) ...{
+      'first_name': newAccount.firstName,
+      'last_name': newAccount.lastName,
+    },
+  };
 
   static StayDetail _detail(Object? json) =>
       _decode(StayCodec.detailFromJson, json);
@@ -128,6 +146,8 @@ class DioStayRepository implements StayRepository {
       'invalid_stay_kind' => StayErrorCode.invalidKind,
       'invalid_stay_dates' => StayErrorCode.invalidDates,
       'unknown_phone_number' => StayErrorCode.unknownPhone,
+      'invalid_phone_format' => StayErrorCode.invalidPhone,
+      'invalid_user_name' => StayErrorCode.invalidPersonName,
       'not_an_acm_stay' => StayErrorCode.notAcm,
       'already_director' => StayErrorCode.alreadyDirector,
       'invalid_token' => StayErrorCode.sessionExpired,

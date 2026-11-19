@@ -198,16 +198,22 @@ class _FailingStayRepository implements StayRepository {
   Future<StayDetail> get(String stayId) async => throw StayException(code);
 
   @override
-  Future<StayDetail> nameDirector(String stayId, PhoneNumber phone) async =>
-      throw StayException(code);
+  Future<StayDetail> nameDirector(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+  }) async => throw StayException(code);
 
   @override
   Future<StayDetail> removeDirector(String stayId) async =>
       throw StayException(code);
 
   @override
-  Future<StayDetail> addDeputy(String stayId, PhoneNumber phone) async =>
-      throw StayException(code);
+  Future<StayDetail> addDeputy(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+  }) async => throw StayException(code);
 
   @override
   Future<StayDetail> removeDeputy(String stayId, String accountId) async =>

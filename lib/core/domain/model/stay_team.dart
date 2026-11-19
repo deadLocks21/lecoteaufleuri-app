@@ -1,3 +1,4 @@
+import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 
 /// Le rôle d'un compte dans l'équipe d'un séjour (cf. `ACCES.md` du dépôt
@@ -53,6 +54,28 @@ class StayDetail {
     required this.canManageDirector,
     required this.canManageDeputies,
   }) : deputies = List.unmodifiable(deputies);
+}
+
+/// Le prénom et le nom du compte à créer pour un numéro qui n'en a pas, au
+/// moment où on nomme la personne (cf. `ACCES.md`).
+class NewStaffAccount {
+  final String firstName;
+  final String lastName;
+
+  const NewStaffAccount._(this.firstName, this.lastName);
+
+  /// Lève `StayException(invalidPersonName)` si l'un des deux est vide.
+  factory NewStaffAccount.parse({
+    required String firstName,
+    required String lastName,
+  }) {
+    final first = firstName.trim();
+    final last = lastName.trim();
+    if (first.isEmpty || last.isEmpty) {
+      throw const StayException(StayErrorCode.invalidPersonName);
+    }
+    return NewStaffAccount._(first, last);
+  }
 }
 
 /// Un séjour où le compte connecté a un rôle.

@@ -87,4 +87,40 @@ void main() {
       failsWith(StayErrorCode.unknownPhone),
     );
   });
+
+  test('un numéro sans compte en reçoit un si l\'on donne les noms', () async {
+    final repository = as(dominique);
+    final lou = PhoneNumber.parse('07 11 22 33 44');
+
+    await expectLater(
+      repository.addDeputy(summer, lou),
+      failsWith(StayErrorCode.unknownPhone),
+    );
+    final detail = await repository.addDeputy(
+      summer,
+      lou,
+      newAccount: NewStaffAccount.parse(firstName: 'Lou', lastName: 'Petit'),
+    );
+
+    expect(detail.deputies.single.lastName, 'Petit');
+  });
+
+  test('hors ACM, aucun compte n\'est créé', () async {
+    final repository = as('admin', admin: true);
+    final lou = PhoneNumber.parse('07 11 22 33 44');
+
+    await expectLater(
+      repository.nameDirector(
+        weekend,
+        lou,
+        newAccount: NewStaffAccount.parse(firstName: 'Lou', lastName: 'Petit'),
+      ),
+      failsWith(StayErrorCode.notAcm),
+    );
+    // Toujours inconnu : la création n'a pas eu lieu.
+    await expectLater(
+      repository.addDeputy(summer, lou),
+      failsWith(StayErrorCode.unknownPhone),
+    );
+  });
 }

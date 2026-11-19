@@ -29,4 +29,34 @@ void main() {
       ),
     );
   });
+
+  test('crée le compte d\'un numéro inconnu avec des noms non vides', () async {
+    final useCase = NameStaffUseCase(InMemoryStayRepository());
+
+    final detail = await useCase.execute(
+      summer,
+      StaffRole.deputy,
+      rawPhone: '07 11 22 33 44',
+      firstName: ' Lou ',
+      lastName: 'Petit',
+    );
+    expect(detail.deputies.single.firstName, 'Lou');
+
+    expect(
+      () => useCase.execute(
+        summer,
+        StaffRole.deputy,
+        rawPhone: '07 55 66 77 88',
+        firstName: 'Lou',
+        lastName: ' ',
+      ),
+      throwsA(
+        isA<StayException>().having(
+          (e) => e.code,
+          'code',
+          StayErrorCode.invalidPersonName,
+        ),
+      ),
+    );
+  });
 }

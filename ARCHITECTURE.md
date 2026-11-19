@@ -91,7 +91,9 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   son directeur et ses adjoints ; les boutons suivent `can_manage_director` et
   `can_manage_deputies` rendus par l'API (admin : tout ; directeur : ses
   adjoints ; adjoint : rien). On désigne une personne par son numéro de
-  mobile ; l'admin peut aussi la choisir dans la liste des comptes. En mémoire,
+  mobile ; l'admin peut aussi la choisir dans la liste des comptes. Un numéro
+  sans compte (`unknown_phone_number`) fait apparaître prénom et nom : la même
+  requête, avec eux, crée le compte et nomme la personne, tout ou rien. En mémoire,
   `InMemoryStayRepository` rejoue ces règles d'après le compte connecté.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on

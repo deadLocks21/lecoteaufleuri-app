@@ -24,6 +24,7 @@ class InMemoryStayRepository implements StayRepository {
   /// Le compte connecté, relu à chaque appel comme l'API relit l'appelant.
   final StayViewer Function() _viewer;
   int _created = 0;
+  int _createdAccounts = 0;
 
   /// Sans [viewer], le compte de démo (admin).
   InMemoryStayRepository({
@@ -90,10 +91,14 @@ class InMemoryStayRepository implements StayRepository {
   Future<StayDetail> get(String stayId) async => _detail(_visible(stayId));
 
   @override
-  Future<StayDetail> nameDirector(String stayId, PhoneNumber phone) async {
+  Future<StayDetail> nameDirector(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+  }) async {
     final stay = _allowed(stayId, (role) => false);
-    final account = _account(phone);
     _requireAcm(stay);
+    final account = _account(phone, newAccount);
     final team = _team(stay);
     team.removeWhere((_, role) => role == StaffRole.director);
     team[account.id] = StaffRole.director;
@@ -108,10 +113,14 @@ class InMemoryStayRepository implements StayRepository {
   }
 
   @override
-  Future<StayDetail> addDeputy(String stayId, PhoneNumber phone) async {
+  Future<StayDetail> addDeputy(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+  }) async {
     final stay = _allowed(stayId, (role) => role == StaffRole.director);
-    final account = _account(phone);
     _requireAcm(stay);
+    final account = _account(phone, newAccount);
     final team = _team(stay);
     if (team[account.id] == StaffRole.director) {
       throw const StayException(StayErrorCode.alreadyDirector);
@@ -166,10 +175,26 @@ class InMemoryStayRepository implements StayRepository {
   Map<String, StaffRole> _team(Stay stay) =>
       _staff.putIfAbsent(stay.id, () => {});
 
-  User _account(PhoneNumber phone) => _accounts.firstWhere(
-    (account) => account.phoneNumber == phone.e164,
-    orElse: () => throw const StayException(StayErrorCode.unknownPhone),
-  );
+  /// Le compte de [phone], ou un compte créé avec [newAccount] s'il n'y en a
+  /// pas (vérifications faites : comme l'API, rien n'est créé si la
+  /// nomination doit échouer).
+  User _account(PhoneNumber phone, NewStaffAccount? newAccount) {
+    final existing = _accounts
+        .where((account) => account.phoneNumber == phone.e164)
+        .firstOrNull;
+    if (existing != null) return existing;
+    if (newAccount == null) {
+      throw const StayException(StayErrorCode.unknownPhone);
+    }
+    final created = User(
+      id: '0a5c0000-0000-4000-8000-${(++_createdAccounts).toString().padLeft(12, '8')}',
+      phoneNumber: phone.e164,
+      firstName: newAccount.firstName,
+      lastName: newAccount.lastName,
+    );
+    _accounts.add(created);
+    return created;
+  }
 
   void _requireAcm(Stay stay) {
     if (stay.kind != StayKind.acm) {

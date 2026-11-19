@@ -20,8 +20,11 @@ enum StayErrorCode {
   /// Le numéro saisi n'est pas un mobile français.
   invalidPhone,
 
-  /// Aucun compte actif pour ce numéro.
+  /// Aucun compte actif pour ce numéro (et pas de noms pour en créer un).
   unknownPhone,
+
+  /// Prénom ou nom vide pour le compte à créer.
+  invalidPersonName,
 
   /// Directeur ou adjoint sur un séjour hors ACM.
   notAcm,

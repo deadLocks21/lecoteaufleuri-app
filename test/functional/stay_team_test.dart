@@ -144,7 +144,8 @@ void main() {
   });
 
   testWidgets(
-    'un numéro sans compte, ou celui du directeur, est refusé sur le champ',
+    'un numéro sans compte propose d\'en créer un, jusqu\'à ce qu\'on en '
+    'change ; celui du directeur ou un numéro mal formé est refusé',
     (tester) async {
       await launchAs(tester, demo);
       await openStayAsAdmin(tester, summer);
@@ -152,9 +153,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await nameByPhone(tester, '06 99 99 99 99');
-      expect(find.text('Aucun compte pour ce numéro.'), findsOneWidget);
+      expect(find.byKey(const Key('newAccountHint')), findsOneWidget);
+      expect(find.text('Créer le compte et nommer'), findsOneWidget);
 
       await nameByPhone(tester, '06 22 22 22 22');
+      expect(find.byKey(const Key('newAccountHint')), findsNothing);
       expect(
         find.text('Cette personne dirige déjà le séjour.'),
         findsOneWidget,
@@ -189,6 +192,42 @@ void main() {
 
       expect(find.text('Adjoint ajouté.'), findsOneWidget);
       expect(find.byKey(const Key('deputy-$sachaId')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'le directeur crée le compte d\'un adjoint qui n\'en a pas encore',
+    (tester) async {
+      await launchAs(tester, dominique);
+      await tester.tap(find.byKey(const Key('myStay-$summer')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('addDeputyButton')));
+      await tester.pumpAndSettle();
+
+      await nameByPhone(tester, '07 11 22 33 44');
+      expect(find.byKey(const Key('newAccountHint')), findsOneWidget);
+
+      // Les deux noms sont obligatoires, et l'erreur part dès qu'on corrige.
+      await tester.enterText(
+        find.byKey(const Key('staffFirstNameField')),
+        'Lou',
+      );
+      await tester.tap(find.byKey(const Key('nameStaffButton')));
+      await tester.pumpAndSettle();
+      expect(find.text('Le nom est obligatoire.'), findsOneWidget);
+      expect(find.text('Le prénom est obligatoire.'), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const Key('staffLastNameField')),
+        'Petit',
+      );
+      await tester.pump();
+      expect(find.text('Le nom est obligatoire.'), findsNothing);
+      await tester.tap(find.byKey(const Key('nameStaffButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Compte créé, adjoint ajouté.'), findsOneWidget);
+      expect(find.text('Lou Petit'), findsOneWidget);
     },
   );
 

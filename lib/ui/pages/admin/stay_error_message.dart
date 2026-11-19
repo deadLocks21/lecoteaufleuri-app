@@ -10,6 +10,7 @@ String stayErrorMessage(StayErrorCode code) => switch (code) {
   StayErrorCode.invalidPhone =>
     'Numéro de mobile invalide (ex. 06 12 34 56 78).',
   StayErrorCode.unknownPhone => 'Aucun compte pour ce numéro.',
+  StayErrorCode.invalidPersonName => 'Le prénom et le nom sont obligatoires.',
   StayErrorCode.notAcm => 'Seul un séjour ACM a un directeur et des adjoints.',
   StayErrorCode.alreadyDirector => 'Cette personne dirige déjà le séjour.',
   StayErrorCode.invalidName =>

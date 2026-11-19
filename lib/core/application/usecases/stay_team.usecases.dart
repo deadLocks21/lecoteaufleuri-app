@@ -17,17 +17,20 @@ class GetStayUseCase {
 
 /// Nomme le directeur ([StaffRole.director]) ou ajoute un adjoint
 /// ([StaffRole.deputy]), désigné par son numéro de mobile en saisie libre.
+/// Avec [firstName] et [lastName], un numéro sans compte en reçoit un.
 class NameStaffUseCase {
   final StayRepository _stays;
 
   NameStaffUseCase(this._stays);
 
-  /// Lève `StayException(invalidPhone)` avant tout appel si le numéro n'est
-  /// pas un mobile français.
+  /// Lève `StayException(invalidPhone | invalidPersonName)` avant tout appel
+  /// si le numéro n'est pas un mobile français, ou si un nom donné est vide.
   Future<StayDetailDto> execute(
     String stayId,
     StaffRole role, {
     required String rawPhone,
+    String? firstName,
+    String? lastName,
   }) async {
     final PhoneNumber phone;
     try {
@@ -35,9 +38,23 @@ class NameStaffUseCase {
     } on AuthException {
       throw const StayException(StayErrorCode.invalidPhone);
     }
+    final newAccount = firstName == null && lastName == null
+        ? null
+        : NewStaffAccount.parse(
+            firstName: firstName ?? '',
+            lastName: lastName ?? '',
+          );
     final detail = switch (role) {
-      StaffRole.director => await _stays.nameDirector(stayId, phone),
-      StaffRole.deputy => await _stays.addDeputy(stayId, phone),
+      StaffRole.director => await _stays.nameDirector(
+        stayId,
+        phone,
+        newAccount: newAccount,
+      ),
+      StaffRole.deputy => await _stays.addDeputy(
+        stayId,
+        phone,
+        newAccount: newAccount,
+      ),
     };
     return StayDetailDto.fromDomain(detail);
   }

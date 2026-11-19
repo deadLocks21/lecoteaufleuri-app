@@ -23,8 +23,21 @@ class StayDetailController extends _$StayDetailController {
   Future<StayDetailDto> build(String stayId) =>
       ref.watch(staysServiceProvider).get.execute(stayId);
 
-  Future<StayErrorCode?> name(StaffRole role, {required String rawPhone}) =>
-      _run(() => _service.nameStaff.execute(stayId, role, rawPhone: rawPhone));
+  /// Avec [firstName] et [lastName], un numéro sans compte en reçoit un.
+  Future<StayErrorCode?> name(
+    StaffRole role, {
+    required String rawPhone,
+    String? firstName,
+    String? lastName,
+  }) => _run(
+    () => _service.nameStaff.execute(
+      stayId,
+      role,
+      rawPhone: rawPhone,
+      firstName: firstName,
+      lastName: lastName,
+    ),
+  );
 
   Future<StayErrorCode?> remove(StaffRole role, {String? accountId}) => _run(
     () => _service.removeStaff.execute(stayId, role, accountId: accountId),

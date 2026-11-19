@@ -4,6 +4,7 @@ import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/dio.stay.repository.dart';
 
 import '../../helpers/fake_http_adapter.dart';
@@ -70,6 +71,8 @@ void main() {
       (404, 'unknown_phone_number', StayErrorCode.unknownPhone),
       (409, 'not_an_acm_stay', StayErrorCode.notAcm),
       (409, 'already_director', StayErrorCode.alreadyDirector),
+      (400, 'invalid_user_name', StayErrorCode.invalidPersonName),
+      (400, 'invalid_phone_format', StayErrorCode.invalidPhone),
       (500, 'boom', StayErrorCode.unknown),
     ]) {
       final adapter = FakeHttpAdapter(
@@ -166,5 +169,34 @@ void main() {
 
     expect(mine.single.stay.name, 'Été 2027');
     expect(adapter.requests.single.path, '/api/me/stays');
+  });
+
+  test('envoie les noms du compte à créer, s\'il y en a', () async {
+    const stay = '5d1e0000-0000-4000-8000-000000000001';
+    final adapter = FakeHttpAdapter(
+      (_) => FakeHttpAdapter.json({
+        ...stayJson,
+        'director': null,
+        'deputies': <Object?>[],
+        'can_manage_director': true,
+        'can_manage_deputies': true,
+      }),
+    );
+    final repository = DioStayRepository(dioWith(adapter));
+    final phone = PhoneNumber.parse('07 11 22 33 44');
+
+    await repository.addDeputy(
+      stay,
+      phone,
+      newAccount: NewStaffAccount.parse(firstName: 'Lou', lastName: 'Petit'),
+    );
+    await repository.nameDirector(stay, phone);
+
+    expect(adapter.requests[0].data, {
+      'phone_number': '+33711223344',
+      'first_name': 'Lou',
+      'last_name': 'Petit',
+    });
+    expect(adapter.requests[1].data, {'phone_number': '+33711223344'});
   });
 }
