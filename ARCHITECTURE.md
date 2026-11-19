@@ -88,9 +88,9 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   l'app à minuit UTC (`calendarDay`) : seuls l'année, le mois et le jour
   comptent.
 - **Direction d'un séjour** (`ui/pages/stays/`) : la fiche d'un séjour montre
-  son directeur et ses adjoints ; les boutons suivent `can_manage_director` et
-  `can_manage_deputies` rendus par l'API (admin : tout ; directeur : ses
-  adjoints ; adjoint : rien). On désigne une personne par son numéro de
+  ses directeurs (un ou plusieurs, égaux) et ses adjoints ; les boutons suivent
+  `can_manage_directors` et `can_manage_deputies` rendus par l'API (admin :
+  tout ; directeur : les adjoints ; adjoint : rien). On désigne une personne par son numéro de
   mobile ; l'admin peut aussi la choisir dans la liste des comptes. Un numéro
   sans compte (`unknown_phone_number`) fait apparaître prénom et nom : la même
   requête, avec eux, crée le compte et nomme la personne, tout ou rien. En mémoire,

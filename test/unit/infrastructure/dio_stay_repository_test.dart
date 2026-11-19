@@ -131,9 +131,9 @@ void main() {
     final adapter = FakeHttpAdapter(
       (_) => FakeHttpAdapter.json({
         ...stayJson,
-        'director': null,
+        'directors': <Object?>[],
         'deputies': <Object?>[],
-        'can_manage_director': true,
+        'can_manage_directors': true,
         'can_manage_deputies': true,
       }),
     );
@@ -142,14 +142,14 @@ void main() {
 
     await repository.get(stay);
     await repository.nameDirector(stay, phone);
-    await repository.removeDirector(stay);
+    await repository.removeDirector(stay, deputy);
     await repository.addDeputy(stay, phone);
     await repository.removeDeputy(stay, deputy);
 
     expect(adapter.requests.map((r) => '${r.method} ${r.path}'), [
       'GET /api/stays/$stay',
-      'PUT /api/stays/$stay/director',
-      'DELETE /api/stays/$stay/director',
+      'POST /api/stays/$stay/directors',
+      'DELETE /api/stays/$stay/directors/$deputy',
       'POST /api/stays/$stay/deputies',
       'DELETE /api/stays/$stay/deputies/$deputy',
     ]);
@@ -176,9 +176,9 @@ void main() {
     final adapter = FakeHttpAdapter(
       (_) => FakeHttpAdapter.json({
         ...stayJson,
-        'director': null,
+        'directors': <Object?>[],
         'deputies': <Object?>[],
-        'can_manage_director': true,
+        'can_manage_directors': true,
         'can_manage_deputies': true,
       }),
     );

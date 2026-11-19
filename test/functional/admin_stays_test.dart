@@ -205,7 +205,7 @@ class _FailingStayRepository implements StayRepository {
   }) async => throw StayException(code);
 
   @override
-  Future<StayDetail> removeDirector(String stayId) async =>
+  Future<StayDetail> removeDirector(String stayId, String accountId) async =>
       throw StayException(code);
 
   @override

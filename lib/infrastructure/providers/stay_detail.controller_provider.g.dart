@@ -69,7 +69,7 @@ final class StayDetailControllerProvider
 }
 
 String _$stayDetailControllerHash() =>
-    r'299aa78b09593f2090e86d8d15451578d601d62d';
+    r'ffcfa24f56263651745aa3a0ec26db797d470dcd';
 
 /// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
 /// adjoints).

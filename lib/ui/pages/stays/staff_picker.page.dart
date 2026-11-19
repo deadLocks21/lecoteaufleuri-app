@@ -69,9 +69,9 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
     if (!mounted) return;
     if (error == null) {
       Navigator.of(context).pop(switch ((create, _director)) {
-        (true, true) => 'Compte créé, directeur nommé.',
+        (true, true) => 'Compte créé, directeur ajouté.',
         (true, false) => 'Compte créé, adjoint ajouté.',
-        (false, true) => 'Directeur nommé.',
+        (false, true) => 'Directeur ajouté.',
         (false, false) => 'Adjoint ajouté.',
       });
       return;
@@ -134,7 +134,7 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_director ? 'Nommer le directeur' : 'Ajouter un adjoint'),
+        title: Text(_director ? 'Ajouter un directeur' : 'Ajouter un adjoint'),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -144,8 +144,9 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
             children: [
               Text(
                 _director
-                    ? 'Il remplacera le directeur actuel, s\'il y en a un. '
-                          'Un adjoint nommé directeur quitte les adjoints.'
+                    ? 'Il rejoint les autres directeurs du séjour, avec les '
+                          'mêmes droits. Un adjoint nommé directeur quitte les '
+                          'adjoints.'
                     : 'L\'adjoint a les droits du directeur sur ce séjour, '
                           'sauf nommer ou retirer des adjoints.',
                 style: theme.textTheme.bodySmall?.copyWith(

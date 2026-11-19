@@ -38,15 +38,17 @@ class DioStayRepository implements StayRepository {
     NewStaffAccount? newAccount,
   }) async => _detail(
     await _send(
-      'PUT',
-      ApiEndpoints.stayDirector(stayId),
+      'POST',
+      ApiEndpoints.stayDirectors(stayId),
       data: _staff(phone, newAccount),
     ),
   );
 
   @override
-  Future<StayDetail> removeDirector(String stayId) async =>
-      _detail(await _send('DELETE', ApiEndpoints.stayDirector(stayId)));
+  Future<StayDetail> removeDirector(String stayId, String accountId) async =>
+      _detail(
+        await _send('DELETE', ApiEndpoints.stayDirector(stayId, accountId)),
+      );
 
   @override
   Future<StayDetail> addDeputy(

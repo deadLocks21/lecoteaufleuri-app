@@ -65,53 +65,55 @@ void main() {
   test('lit un séjour avec sa direction', () {
     final detail = StayCodec.detailFromJson({
       ...json,
-      'director': {
-        'id': 'd1',
-        'first_name': 'Dominique',
-        'last_name': 'Durand',
-      },
+      'directors': [
+        {'id': 'd1', 'first_name': 'Dominique', 'last_name': 'Durand'},
+        {'id': 'd3', 'first_name': 'Lou', 'last_name': 'Petit'},
+      ],
       'deputies': [
         {'id': 'd2', 'first_name': 'Sacha', 'last_name': 'Bernard'},
       ],
-      'can_manage_director': false,
+      'can_manage_directors': false,
       'can_manage_deputies': true,
     });
 
     expect(detail.stay.name, 'Été 2027');
-    expect(detail.director?.lastName, 'Durand');
+    expect(detail.directors.map((d) => d.lastName), ['Durand', 'Petit']);
     expect(detail.deputies.single.firstName, 'Sacha');
-    expect(detail.canManageDirector, isFalse);
+    expect(detail.canManageDirectors, isFalse);
     expect(detail.canManageDeputies, isTrue);
   });
 
-  test('un séjour sans directeur a `director` à null', () {
+  test('un séjour sans directeur a une liste vide', () {
     final detail = StayCodec.detailFromJson({
       ...json,
-      'director': null,
+      'directors': <Object?>[],
       'deputies': <Object?>[],
-      'can_manage_director': true,
+      'can_manage_directors': true,
       'can_manage_deputies': true,
     });
 
-    expect(detail.director, isNull);
+    expect(detail.directors, isEmpty);
     expect(detail.deputies, isEmpty);
   });
 
   test('refuse une direction qui n\'a pas la forme attendue', () {
     final base = {
       ...json,
-      'director': null,
+      'directors': <Object?>[],
       'deputies': <Object?>[],
-      'can_manage_director': true,
+      'can_manage_directors': true,
       'can_manage_deputies': true,
     };
     for (final malformed in <Object?>[
       json,
       {...base, 'deputies': null},
-      {...base, 'can_manage_director': 'oui'},
+      {...base, 'can_manage_directors': 'oui'},
+      {...base, 'directors': null},
       {
         ...base,
-        'director': {'id': '', 'first_name': 'X', 'last_name': 'Y'},
+        'directors': [
+          {'id': '', 'first_name': 'X', 'last_name': 'Y'},
+        ],
       },
     ]) {
       expect(

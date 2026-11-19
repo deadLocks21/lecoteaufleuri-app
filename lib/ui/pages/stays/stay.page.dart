@@ -12,8 +12,8 @@ import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 /// Un séjour et sa direction, pour l'admin, son directeur et ses adjoints.
 ///
 /// Les boutons suivent ce que l'API dit permettre au compte connecté :
-/// l'admin nomme ou retire le directeur, l'admin et le directeur nomment ou
-/// retirent les adjoints. L'API revérifie chaque action.
+/// l'admin nomme ou retire les directeurs, l'admin et les directeurs nomment
+/// ou retirent les adjoints. L'API revérifie chaque action.
 class StayPage extends ConsumerWidget {
   final String stayId;
 
@@ -78,7 +78,7 @@ class _StayView extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: Text(
           role == StaffRole.director
-              ? 'Retirer le directeur ?'
+              ? 'Retirer ce directeur ?'
               : 'Retirer cet adjoint ?',
         ),
         content: Text(
@@ -120,11 +120,74 @@ class _StayView extends ConsumerWidget {
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(message)));
 
+  /// Les directeurs ou les adjoints : un titre, chaque membre (retirable si
+  /// [canManage]) et de quoi en nommer un autre.
+  List<Widget> _section(
+    BuildContext context,
+    WidgetRef ref, {
+    required StaffRole role,
+    required String title,
+    required List<TeamMemberDto> members,
+    required bool canManage,
+  }) {
+    final theme = Theme.of(context);
+    final director = role == StaffRole.director;
+    final name = director ? 'director' : 'deputy';
+    return [
+      Text(title, style: theme.textTheme.titleSmall),
+      if (members.isEmpty)
+        ListTile(
+          key: Key(director ? 'noDirectors' : 'noDeputies'),
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.person_outline),
+          title: Text(
+            director ? 'Aucun directeur' : 'Aucun adjoint',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      for (final member in members)
+        ListTile(
+          key: Key('$name-${member.id}'),
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            director ? Icons.workspace_premium_outlined : Icons.person_outline,
+          ),
+          title: Text(member.fullName),
+          trailing: canManage
+              ? IconButton(
+                  key: Key(
+                    '${director ? 'removeDirector' : 'removeDeputy'}-'
+                    '${member.id}',
+                  ),
+                  tooltip: director
+                      ? 'Retirer ce directeur'
+                      : 'Retirer cet adjoint',
+                  icon: const Icon(Icons.person_remove_outlined),
+                  onPressed: () => _remove(context, ref, role, member),
+                )
+              : null,
+        ),
+      if (canManage)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: Key(director ? 'addDirectorButton' : 'addDeputyButton'),
+            onPressed: () => _name(context, role),
+            icon: const Icon(Icons.person_add_alt_1),
+            label: Text(
+              director ? 'Ajouter un directeur' : 'Ajouter un adjoint',
+            ),
+          ),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final stay = detail.stay;
-    final director = detail.director;
     final muted = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -150,75 +213,23 @@ class _StayView extends ConsumerWidget {
             style: muted,
           )
         else ...[
-          Text('Directeur', style: theme.textTheme.titleSmall),
-          ListTile(
-            key: const Key('directorTile'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.workspace_premium_outlined),
-            title: Text(director?.fullName ?? 'Aucun directeur'),
-            trailing: detail.canManageDirector
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        key: const Key('nameDirectorButton'),
-                        tooltip: director == null
-                            ? 'Nommer le directeur'
-                            : 'Changer de directeur',
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () => _name(context, StaffRole.director),
-                      ),
-                      if (director != null)
-                        IconButton(
-                          key: const Key('removeDirectorButton'),
-                          tooltip: 'Retirer le directeur',
-                          icon: const Icon(Icons.person_remove_outlined),
-                          onPressed: () => _remove(
-                            context,
-                            ref,
-                            StaffRole.director,
-                            director,
-                          ),
-                        ),
-                    ],
-                  )
-                : null,
+          ..._section(
+            context,
+            ref,
+            role: StaffRole.director,
+            title: 'Directeurs',
+            members: detail.directors,
+            canManage: detail.canManageDirectors,
           ),
           const SizedBox(height: 16),
-          Text('Adjoints', style: theme.textTheme.titleSmall),
-          if (detail.deputies.isEmpty)
-            ListTile(
-              key: const Key('noDeputies'),
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.person_outline),
-              title: Text('Aucun adjoint', style: muted),
-            ),
-          for (final deputy in detail.deputies)
-            ListTile(
-              key: Key('deputy-${deputy.id}'),
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.person_outline),
-              title: Text(deputy.fullName),
-              trailing: detail.canManageDeputies
-                  ? IconButton(
-                      key: Key('removeDeputy-${deputy.id}'),
-                      tooltip: 'Retirer cet adjoint',
-                      icon: const Icon(Icons.person_remove_outlined),
-                      onPressed: () =>
-                          _remove(context, ref, StaffRole.deputy, deputy),
-                    )
-                  : null,
-            ),
-          if (detail.canManageDeputies)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const Key('addDeputyButton'),
-                onPressed: () => _name(context, StaffRole.deputy),
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Ajouter un adjoint'),
-              ),
-            ),
+          ..._section(
+            context,
+            ref,
+            role: StaffRole.deputy,
+            title: 'Adjoints',
+            members: detail.deputies,
+            canManage: detail.canManageDeputies,
+          ),
         ],
       ],
     );

@@ -22,7 +22,9 @@ abstract final class ApiEndpoints {
 
   /// Un séjour et sa direction (admin, directeur, adjoints).
   static String stay(String id) => '/api/stays/$id';
-  static String stayDirector(String id) => '${stay(id)}/director';
+  static String stayDirectors(String id) => '${stay(id)}/directors';
+  static String stayDirector(String id, String accountId) =>
+      '${stayDirectors(id)}/$accountId';
   static String stayDeputies(String id) => '${stay(id)}/deputies';
   static String stayDeputy(String id, String accountId) =>
       '${stayDeputies(id)}/$accountId';

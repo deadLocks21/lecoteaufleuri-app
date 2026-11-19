@@ -60,7 +60,7 @@ class NameStaffUseCase {
   }
 }
 
-/// Retire le directeur, ou l'adjoint [accountId].
+/// Retire le directeur ou l'adjoint [accountId].
 class RemoveStaffUseCase {
   final StayRepository _stays;
 
@@ -69,11 +69,11 @@ class RemoveStaffUseCase {
   Future<StayDetailDto> execute(
     String stayId,
     StaffRole role, {
-    String? accountId,
+    required String accountId,
   }) async {
     final detail = switch (role) {
-      StaffRole.director => await _stays.removeDirector(stayId),
-      StaffRole.deputy => await _stays.removeDeputy(stayId, accountId!),
+      StaffRole.director => await _stays.removeDirector(stayId, accountId),
+      StaffRole.deputy => await _stays.removeDeputy(stayId, accountId),
     };
     return StayDetailDto.fromDomain(detail);
   }

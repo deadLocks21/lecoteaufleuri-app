@@ -39,16 +39,16 @@ abstract final class StayCodec {
   /// Un séjour avec sa direction (`GET /api/stays/{id}` et ses actions).
   static StayDetail detailFromJson(Object? json) {
     if (json case {
-      'director': final Object? director,
+      'directors': final List<Object?> directors,
       'deputies': final List<Object?> deputies,
-      'can_manage_director': final bool canManageDirector,
+      'can_manage_directors': final bool canManageDirectors,
       'can_manage_deputies': final bool canManageDeputies,
     }) {
       return StayDetail(
         stay: fromJson(json),
-        director: director == null ? null : _member(director),
+        directors: [for (final director in directors) _member(director)],
         deputies: [for (final deputy in deputies) _member(deputy)],
-        canManageDirector: canManageDirector,
+        canManageDirectors: canManageDirectors,
         canManageDeputies: canManageDeputies,
       );
     }

@@ -25,26 +25,24 @@ class TeamMemberDto {
 /// Un séjour et sa direction, avec ce que le compte connecté peut y changer.
 class StayDetailDto {
   final StayDto stay;
-  final TeamMemberDto? director;
+  final List<TeamMemberDto> directors;
   final List<TeamMemberDto> deputies;
-  final bool canManageDirector;
+  final bool canManageDirectors;
   final bool canManageDeputies;
 
   const StayDetailDto({
     required this.stay,
-    required this.director,
+    required this.directors,
     required this.deputies,
-    required this.canManageDirector,
+    required this.canManageDirectors,
     required this.canManageDeputies,
   });
 
   factory StayDetailDto.fromDomain(StayDetail detail) => StayDetailDto(
     stay: StayDto.fromDomain(detail.stay),
-    director: detail.director == null
-        ? null
-        : TeamMemberDto.fromDomain(detail.director!),
+    directors: detail.directors.map(TeamMemberDto.fromDomain).toList(),
     deputies: detail.deputies.map(TeamMemberDto.fromDomain).toList(),
-    canManageDirector: detail.canManageDirector,
+    canManageDirectors: detail.canManageDirectors,
     canManageDeputies: detail.canManageDeputies,
   );
 }

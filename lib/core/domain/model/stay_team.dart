@@ -4,7 +4,7 @@ import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 /// Le rôle d'un compte dans l'équipe d'un séjour (cf. `ACCES.md` du dépôt
 /// lecoteaufleuri/dev).
 enum StaffRole {
-  /// Dirige le séjour ; un seul par séjour.
+  /// Dirige le séjour ; un séjour peut en avoir plusieurs, tous égaux.
   director,
 
   /// Seconde le directeur, avec ses droits sauf nommer ou retirer un adjoint.
@@ -37,23 +37,24 @@ class TeamMember {
 
 /// Un séjour et sa direction, avec ce que le compte connecté peut y changer.
 ///
-/// [canManageDirector] et [canManageDeputies] viennent de l'API, qui revérifie
+/// [canManageDirectors] et [canManageDeputies] viennent de l'API, qui revérifie
 /// à chaque action : l'app s'en sert pour adapter l'écran, jamais pour
 /// protéger quoi que ce soit.
 class StayDetail {
   final Stay stay;
-  final TeamMember? director;
+  final List<TeamMember> directors;
   final List<TeamMember> deputies;
-  final bool canManageDirector;
+  final bool canManageDirectors;
   final bool canManageDeputies;
 
   StayDetail({
     required this.stay,
-    required this.director,
+    required List<TeamMember> directors,
     required List<TeamMember> deputies,
-    required this.canManageDirector,
+    required this.canManageDirectors,
     required this.canManageDeputies,
-  }) : deputies = List.unmodifiable(deputies);
+  }) : directors = List.unmodifiable(directors),
+       deputies = List.unmodifiable(deputies);
 }
 
 /// Le prénom et le nom du compte à créer pour un numéro qui n'en a pas, au

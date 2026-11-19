@@ -19,22 +19,28 @@ void main() {
   InMemoryStayRepository as(String id, {bool admin = false}) =>
       InMemoryStayRepository(viewer: () => (id: id, isAdmin: admin));
 
-  test('nommer directeur un adjoint le retire des adjoints', () async {
-    final repository = as('admin', admin: true);
-    await repository.addDeputy(summer, sachaPhone);
+  test(
+    'un adjoint nommé directeur rejoint les directeurs et quitte les adjoints',
+    () async {
+      final repository = as('admin', admin: true);
+      await repository.addDeputy(summer, sachaPhone);
 
-    final detail = await repository.nameDirector(summer, sachaPhone);
+      final detail = await repository.nameDirector(summer, sachaPhone);
 
-    expect(detail.director?.id, sacha);
-    expect(detail.deputies, isEmpty);
-  });
+      expect(
+        detail.directors.map((d) => d.id),
+        containsAll([dominique, sacha]),
+      );
+      expect(detail.deputies, isEmpty);
+    },
+  );
 
   test('le directeur nomme ses adjoints, pas le directeur', () async {
     final repository = as(dominique);
 
     final detail = await repository.addDeputy(summer, sachaPhone);
     expect(detail.deputies.single.id, sacha);
-    expect(detail.canManageDirector, isFalse);
+    expect(detail.canManageDirectors, isFalse);
     expect(detail.canManageDeputies, isTrue);
 
     await expectLater(
@@ -71,7 +77,7 @@ void main() {
       repository.nameDirector(weekend, sachaPhone),
       failsWith(StayErrorCode.notAcm),
     );
-    expect((await repository.get(weekend)).canManageDirector, isFalse);
+    expect((await repository.get(weekend)).canManageDirectors, isFalse);
   });
 
   test('le directeur ne peut pas être adjoint, et le numéro doit avoir un '

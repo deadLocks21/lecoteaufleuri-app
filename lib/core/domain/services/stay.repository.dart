@@ -16,17 +16,16 @@ abstract interface class StayRepository {
   /// Le séjour et sa direction : admin, directeur et adjoints du séjour.
   Future<StayDetail> get(String stayId);
 
-  /// Le compte de [phone] devient directeur, à la place du précédent. S'il
-  /// n'existe pas, [newAccount] le crée ; sans lui, `unknownPhone`. Admins
-  /// seulement.
+  /// Le compte de [phone] rejoint les directeurs. S'il n'existe pas,
+  /// [newAccount] le crée ; sans lui, `unknownPhone`. Admins seulement.
   Future<StayDetail> nameDirector(
     String stayId,
     PhoneNumber phone, {
     NewStaffAccount? newAccount,
   });
 
-  /// Admins seulement.
-  Future<StayDetail> removeDirector(String stayId);
+  /// Le directeur [accountId] quitte la direction. Admins seulement.
+  Future<StayDetail> removeDirector(String stayId, String accountId);
 
   /// Le compte de [phone] devient adjoint ; comme [nameDirector] pour un
   /// numéro sans compte. Admin et directeur du séjour.

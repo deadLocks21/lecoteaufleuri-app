@@ -12,7 +12,7 @@ import 'package:lecoteaufleuri/infrastructure/auth/in_memory.auth.repository.dar
 typedef StayViewer = ({String id, bool isAdmin});
 
 /// Séjours en mémoire (dev sans serveur, tests), avec les règles de l'API :
-/// tri, direction réservée aux ACM, un seul directeur, un rôle par compte, et
+/// tri, direction réservée aux ACM, un rôle par compte, et
 /// les droits du compte connecté (admin, directeur ou adjoint).
 class InMemoryStayRepository implements StayRepository {
   final List<Stay> _stays;
@@ -100,15 +100,16 @@ class InMemoryStayRepository implements StayRepository {
     _requireAcm(stay);
     final account = _account(phone, newAccount);
     final team = _team(stay);
-    team.removeWhere((_, role) => role == StaffRole.director);
+    // Un adjoint nommé directeur quitte les adjoints.
     team[account.id] = StaffRole.director;
     return _detail(stay);
   }
 
   @override
-  Future<StayDetail> removeDirector(String stayId) async {
+  Future<StayDetail> removeDirector(String stayId, String accountId) async {
     final stay = _allowed(stayId, (role) => false);
-    _team(stay).removeWhere((_, role) => role == StaffRole.director);
+    final team = _team(stay);
+    if (team[accountId] == StaffRole.director) team.remove(accountId);
     return _detail(stay);
   }
 
@@ -215,14 +216,10 @@ class InMemoryStayRepository implements StayRepository {
     }
 
     final team = _staff[stay.id] ?? {};
-    final directorId = team.entries
-        .where((e) => e.value == StaffRole.director)
-        .map((e) => e.key)
-        .firstOrNull;
-    final deputies =
+    List<TeamMember> members(StaffRole wanted) =>
         [
           for (final MapEntry(:key, :value) in team.entries)
-            if (value == StaffRole.deputy) ?member(key),
+            if (value == wanted) ?member(key),
         ]..sort(
           (a, b) => '${a.lastName} ${a.firstName}'.compareTo(
             '${b.lastName} ${b.firstName}',
@@ -231,9 +228,9 @@ class InMemoryStayRepository implements StayRepository {
 
     return StayDetail(
       stay: stay,
-      director: directorId == null ? null : member(directorId),
-      deputies: deputies,
-      canManageDirector: _can(stay, (role) => false),
+      directors: members(StaffRole.director),
+      deputies: members(StaffRole.deputy),
+      canManageDirectors: _can(stay, (role) => false),
       canManageDeputies: _can(stay, (role) => role == StaffRole.director),
     );
   }

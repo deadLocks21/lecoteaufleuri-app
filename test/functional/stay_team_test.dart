@@ -81,7 +81,7 @@ void main() {
     expect(find.text('Du 10 au 24 juillet 2027'), findsOneWidget);
     expect(find.text('Dominique Durand'), findsOneWidget);
     expect(find.byKey(const Key('noDeputies')), findsOneWidget);
-    expect(find.byKey(const Key('nameDirectorButton')), findsOneWidget);
+    expect(find.byKey(const Key('addDirectorButton')), findsOneWidget);
     expect(find.byKey(const Key('addDeputyButton')), findsOneWidget);
   });
 
@@ -90,16 +90,17 @@ void main() {
     await openStayAsAdmin(tester, weekend);
 
     expect(find.byKey(const Key('noDirection')), findsOneWidget);
-    expect(find.byKey(const Key('nameDirectorButton')), findsNothing);
+    expect(find.byKey(const Key('addDirectorButton')), findsNothing);
   });
 
   testWidgets(
-    'l\'admin change de directeur en choisissant un compte dans la liste',
+    'l\'admin ajoute un second directeur en choisissant un compte, puis '
+    'retire le premier',
     (tester) async {
       await launchAs(tester, demo);
       await openStayAsAdmin(tester, summer);
 
-      await tester.tap(find.byKey(const Key('nameDirectorButton')));
+      await tester.tap(find.byKey(const Key('addDirectorButton')));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('staffSearchField')),
@@ -109,14 +110,19 @@ void main() {
       await tester.tap(find.byKey(const Key('pickAccount-$sachaId')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Directeur nommé.'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('directorTile')),
-          matching: find.text('Sacha Bernard'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Directeur ajouté.'), findsOneWidget);
+      expect(find.byKey(const Key('director-$sachaId')), findsOneWidget);
+      expect(find.byKey(const Key('director-$dominiqueId')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('removeDirector-$dominiqueId')));
+      await tester.pumpAndSettle();
+      expect(find.text('Retirer ce directeur ?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('confirmButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Directeur retiré.'), findsOneWidget);
+      expect(find.byKey(const Key('director-$dominiqueId')), findsNothing);
+      expect(find.byKey(const Key('director-$sachaId')), findsOneWidget);
     },
   );
 
@@ -183,7 +189,7 @@ void main() {
       await tester.tap(find.byKey(const Key('myStay-$summer')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('nameDirectorButton')), findsNothing);
+      expect(find.byKey(const Key('addDirectorButton')), findsNothing);
       await tester.tap(find.byKey(const Key('addDeputyButton')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('staffSearchField')), findsNothing);
@@ -247,7 +253,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dominique Durand'), findsOneWidget);
-    expect(find.byKey(const Key('nameDirectorButton')), findsNothing);
+    expect(find.byKey(const Key('addDirectorButton')), findsNothing);
     expect(find.byKey(const Key('addDeputyButton')), findsNothing);
     expect(find.byKey(const Key('removeDeputy-$sachaId')), findsNothing);
   });

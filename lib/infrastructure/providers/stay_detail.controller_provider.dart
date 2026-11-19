@@ -39,9 +39,10 @@ class StayDetailController extends _$StayDetailController {
     ),
   );
 
-  Future<StayErrorCode?> remove(StaffRole role, {String? accountId}) => _run(
-    () => _service.removeStaff.execute(stayId, role, accountId: accountId),
-  );
+  Future<StayErrorCode?> remove(StaffRole role, {required String accountId}) =>
+      _run(
+        () => _service.removeStaff.execute(stayId, role, accountId: accountId),
+      );
 
   Future<StayErrorCode?> _run(Future<StayDetailDto> Function() action) async {
     try {
