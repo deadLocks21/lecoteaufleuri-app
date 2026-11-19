@@ -32,7 +32,9 @@ L'app s'ouvre sur la connexion par numéro de mobile + code reçu par SMS.
 
 - **Sans backend** (par défaut) : compte de démo `06 12 34 56 78`, code `000000`.
   Il est admin, pour essayer l'administration des comptes et des séjours
-  (comptes et séjours de démo en mémoire).
+  (comptes et séjours de démo en mémoire) : l'été 2027 est dirigé par
+  Dominique Durand ; se nommer adjoint (06 12 34 56 78) le fait apparaître
+  dans « Mes séjours ».
 - **Contre l'API** (`lecoteaufleuri/api`) : passer son origine à la compilation.
 
   ```sh

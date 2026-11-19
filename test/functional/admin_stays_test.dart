@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
+import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
 import 'package:lecoteaufleuri/core/domain/model/session.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 import 'package:lecoteaufleuri/core/domain/model/user.dart';
 import 'package:lecoteaufleuri/core/domain/services/stay.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/auth/in_memory.auth.repository.dart';
@@ -191,4 +193,26 @@ class _FailingStayRepository implements StayRepository {
 
   @override
   Future<Stay> create(StayDraft draft) async => throw StayException(code);
+
+  @override
+  Future<StayDetail> get(String stayId) async => throw StayException(code);
+
+  @override
+  Future<StayDetail> nameDirector(String stayId, PhoneNumber phone) async =>
+      throw StayException(code);
+
+  @override
+  Future<StayDetail> removeDirector(String stayId) async =>
+      throw StayException(code);
+
+  @override
+  Future<StayDetail> addDeputy(String stayId, PhoneNumber phone) async =>
+      throw StayException(code);
+
+  @override
+  Future<StayDetail> removeDeputy(String stayId, String accountId) async =>
+      throw StayException(code);
+
+  @override
+  Future<List<MyStay>> mine() async => throw StayException(code);
 }

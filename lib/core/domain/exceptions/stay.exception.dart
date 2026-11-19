@@ -1,9 +1,12 @@
-/// Raisons d'échec de l'administration des séjours, indépendantes du
-/// transport. Les implémentations de `StayRepository` y traduisent les `code`
-/// d'erreur de l'API (cf. `API.md` du dépôt api).
+/// Raisons d'échec autour des séjours, indépendantes du transport. Les
+/// implémentations de `StayRepository` y traduisent les `code` d'erreur de
+/// l'API (cf. `API.md` du dépôt api).
 enum StayErrorCode {
-  /// L'appelant n'est pas (ou plus) admin.
+  /// L'appelant n'a pas (ou plus) ce droit.
   forbidden,
+
+  /// Le séjour n'existe pas, ou le compte n'y a plus aucun lien.
+  notFound,
 
   /// Nom vide ou trop long.
   invalidName,
@@ -13,6 +16,18 @@ enum StayErrorCode {
 
   /// Dates manquantes, ou fin avant le début.
   invalidDates,
+
+  /// Le numéro saisi n'est pas un mobile français.
+  invalidPhone,
+
+  /// Aucun compte actif pour ce numéro.
+  unknownPhone,
+
+  /// Directeur ou adjoint sur un séjour hors ACM.
+  notAcm,
+
+  /// Nommer adjoint le directeur du séjour.
+  alreadyDirector,
 
   /// Le jeton a été refusé : la connexion est relancée.
   sessionExpired,

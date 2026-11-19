@@ -5,6 +5,13 @@ import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
 String stayErrorMessage(StayErrorCode code) => switch (code) {
   StayErrorCode.forbidden =>
     'Vous n\'avez pas (ou plus) accès à la gestion des séjours.',
+  StayErrorCode.notFound =>
+    'Ce séjour n\'existe plus, ou vous n\'y avez plus accès.',
+  StayErrorCode.invalidPhone =>
+    'Numéro de mobile invalide (ex. 06 12 34 56 78).',
+  StayErrorCode.unknownPhone => 'Aucun compte pour ce numéro.',
+  StayErrorCode.notAcm => 'Seul un séjour ACM a un directeur et des adjoints.',
+  StayErrorCode.alreadyDirector => 'Cette personne dirige déjà le séjour.',
   StayErrorCode.invalidName =>
     'Le nom du séjour est obligatoire '
         '(${StayDraft.nameMaxLength} caractères au plus).',

@@ -1,5 +1,6 @@
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 
 /// Forme JSON d'un séjour, celle de l'API : jours au format `AAAA-MM-JJ`,
 /// nature `acm` ou `other`.
@@ -33,6 +34,51 @@ abstract final class StayCodec {
       );
     }
     throw const FormatException('Stay JSON is malformed');
+  }
+
+  /// Un séjour avec sa direction (`GET /api/stays/{id}` et ses actions).
+  static StayDetail detailFromJson(Object? json) {
+    if (json case {
+      'director': final Object? director,
+      'deputies': final List<Object?> deputies,
+      'can_manage_director': final bool canManageDirector,
+      'can_manage_deputies': final bool canManageDeputies,
+    }) {
+      return StayDetail(
+        stay: fromJson(json),
+        director: director == null ? null : _member(director),
+        deputies: [for (final deputy in deputies) _member(deputy)],
+        canManageDirector: canManageDirector,
+        canManageDeputies: canManageDeputies,
+      );
+    }
+    throw const FormatException('Stay detail JSON is malformed');
+  }
+
+  /// Un séjour du compte connecté, avec son rôle (`GET /api/me/stays`).
+  static MyStay myStayFromJson(Object? json) {
+    if (json case {'role': final String role}) {
+      return MyStay(
+        stay: fromJson(json),
+        role: switch (role) {
+          'director' => StaffRole.director,
+          'deputy' => StaffRole.deputy,
+          _ => throw const FormatException('Unknown staff role'),
+        },
+      );
+    }
+    throw const FormatException('My stay JSON is malformed');
+  }
+
+  static TeamMember _member(Object? json) {
+    if (json case {
+      'id': final String id,
+      'first_name': final String firstName,
+      'last_name': final String lastName,
+    } when id.isNotEmpty) {
+      return TeamMember(id: id, firstName: firstName, lastName: lastName);
+    }
+    throw const FormatException('Team member JSON is malformed');
   }
 
   static Map<String, dynamic> toJson(StayDraft draft) => {

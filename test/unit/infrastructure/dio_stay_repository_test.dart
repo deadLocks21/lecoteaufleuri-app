@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
+import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/dio.stay.repository.dart';
@@ -65,6 +66,10 @@ void main() {
       (400, 'invalid_stay_kind', StayErrorCode.invalidKind),
       (400, 'invalid_stay_dates', StayErrorCode.invalidDates),
       (401, 'invalid_token', StayErrorCode.sessionExpired),
+      (404, 'stay_not_found', StayErrorCode.notFound),
+      (404, 'unknown_phone_number', StayErrorCode.unknownPhone),
+      (409, 'not_an_acm_stay', StayErrorCode.notAcm),
+      (409, 'already_director', StayErrorCode.alreadyDirector),
       (500, 'boom', StayErrorCode.unknown),
     ]) {
       final adapter = FakeHttpAdapter(
@@ -115,5 +120,51 @@ void main() {
       DioStayRepository(dioWith(adapter)).list(),
       failsWith(StayErrorCode.network),
     );
+  });
+
+  test('pilote la direction d\'un séjour sur ses routes', () async {
+    const stay = '5d1e0000-0000-4000-8000-000000000001';
+    const deputy = '0a5c0000-0000-4000-8000-000000000102';
+    final adapter = FakeHttpAdapter(
+      (_) => FakeHttpAdapter.json({
+        ...stayJson,
+        'director': null,
+        'deputies': <Object?>[],
+        'can_manage_director': true,
+        'can_manage_deputies': true,
+      }),
+    );
+    final repository = DioStayRepository(dioWith(adapter));
+    final phone = PhoneNumber.parse('06 33 33 33 33');
+
+    await repository.get(stay);
+    await repository.nameDirector(stay, phone);
+    await repository.removeDirector(stay);
+    await repository.addDeputy(stay, phone);
+    await repository.removeDeputy(stay, deputy);
+
+    expect(adapter.requests.map((r) => '${r.method} ${r.path}'), [
+      'GET /api/stays/$stay',
+      'PUT /api/stays/$stay/director',
+      'DELETE /api/stays/$stay/director',
+      'POST /api/stays/$stay/deputies',
+      'DELETE /api/stays/$stay/deputies/$deputy',
+    ]);
+    expect(adapter.requests[1].data, {'phone_number': '+33633333333'});
+  });
+
+  test('liste les séjours du compte connecté', () async {
+    final adapter = FakeHttpAdapter(
+      (_) => FakeHttpAdapter.json({
+        'stays': [
+          {...stayJson, 'role': 'deputy'},
+        ],
+      }),
+    );
+
+    final mine = await DioStayRepository(dioWith(adapter)).mine();
+
+    expect(mine.single.stay.name, 'Été 2027');
+    expect(adapter.requests.single.path, '/api/me/stays');
   });
 }

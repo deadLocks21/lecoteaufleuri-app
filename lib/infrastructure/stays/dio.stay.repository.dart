@@ -1,36 +1,88 @@
 import 'package:dio/dio.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
+import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 import 'package:lecoteaufleuri/core/domain/services/stay.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/http/api_endpoints.dart';
 import 'package:lecoteaufleuri/infrastructure/http/error_code.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/stay.codec.dart';
 
-/// [StayRepository] sur HTTP : les routes `/api/admin/stays` (cf. `API.md` du
-/// dépôt api). Toute erreur devient une [StayException].
+/// [StayRepository] sur HTTP : `/api/admin/stays`, `/api/stays/{id}…` et
+/// `/api/me/stays` (cf. `API.md` du dépôt api). Toute erreur devient une
+/// [StayException].
 class DioStayRepository implements StayRepository {
   final Dio _dio;
 
   DioStayRepository(this._dio);
 
   @override
-  Future<List<Stay>> list() async {
-    final stays = (await _send('GET', ApiEndpoints.adminStays))['stays'];
-    if (stays is! List) {
-      throw const StayException(StayErrorCode.badServerUrl);
-    }
-    return [for (final stay in stays) _stay(stay)];
-  }
+  Future<List<Stay>> list() async =>
+      _list(await _send('GET', ApiEndpoints.adminStays), StayCodec.fromJson);
 
   @override
-  Future<Stay> create(StayDraft draft) async => _stay(
+  Future<Stay> create(StayDraft draft) async => _decode(
+    StayCodec.fromJson,
     await _send('POST', ApiEndpoints.adminStays, data: StayCodec.toJson(draft)),
   );
 
-  static Stay _stay(Object? json) {
+  @override
+  Future<StayDetail> get(String stayId) async =>
+      _detail(await _send('GET', ApiEndpoints.stay(stayId)));
+
+  @override
+  Future<StayDetail> nameDirector(String stayId, PhoneNumber phone) async =>
+      _detail(
+        await _send(
+          'PUT',
+          ApiEndpoints.stayDirector(stayId),
+          data: {'phone_number': phone.e164},
+        ),
+      );
+
+  @override
+  Future<StayDetail> removeDirector(String stayId) async =>
+      _detail(await _send('DELETE', ApiEndpoints.stayDirector(stayId)));
+
+  @override
+  Future<StayDetail> addDeputy(String stayId, PhoneNumber phone) async =>
+      _detail(
+        await _send(
+          'POST',
+          ApiEndpoints.stayDeputies(stayId),
+          data: {'phone_number': phone.e164},
+        ),
+      );
+
+  @override
+  Future<StayDetail> removeDeputy(String stayId, String accountId) async =>
+      _detail(
+        await _send('DELETE', ApiEndpoints.stayDeputy(stayId, accountId)),
+      );
+
+  @override
+  Future<List<MyStay>> mine() async =>
+      _list(await _send('GET', ApiEndpoints.myStays), StayCodec.myStayFromJson);
+
+  static StayDetail _detail(Object? json) =>
+      _decode(StayCodec.detailFromJson, json);
+
+  /// La liste `stays` d'une réponse, chaque élément lu par [decode].
+  static List<T> _list<T>(
+    Map<String, dynamic> body,
+    T Function(Object?) decode,
+  ) {
+    final stays = body['stays'];
+    if (stays is! List) {
+      throw const StayException(StayErrorCode.badServerUrl);
+    }
+    return [for (final stay in stays) _decode(decode, stay)];
+  }
+
+  static T _decode<T>(T Function(Object?) decode, Object? json) {
     try {
-      return StayCodec.fromJson(json);
+      return decode(json);
     } on FormatException {
       throw const StayException(StayErrorCode.badServerUrl);
     }
@@ -71,9 +123,13 @@ class DioStayRepository implements StayRepository {
 
     return StayException(switch (readErrorCode(response)) {
       'forbidden' => StayErrorCode.forbidden,
+      'stay_not_found' => StayErrorCode.notFound,
       'invalid_stay_name' => StayErrorCode.invalidName,
       'invalid_stay_kind' => StayErrorCode.invalidKind,
       'invalid_stay_dates' => StayErrorCode.invalidDates,
+      'unknown_phone_number' => StayErrorCode.unknownPhone,
+      'not_an_acm_stay' => StayErrorCode.notAcm,
+      'already_director' => StayErrorCode.alreadyDirector,
       'invalid_token' => StayErrorCode.sessionExpired,
       _ => StayErrorCode.unknown,
     });

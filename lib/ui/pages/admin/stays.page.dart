@@ -6,10 +6,12 @@ import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/stays.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_create.page.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_error_message.dart';
+import 'package:lecoteaufleuri/ui/pages/stays/stay.page.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
 /// Les séjours de l'association, pour un admin : du dernier commencé (ou à
-/// venir) au plus ancien, et la création d'un nouveau.
+/// venir) au plus ancien, la création d'un nouveau, et la fiche de chacun
+/// (sa direction).
 class StaysPage extends ConsumerWidget {
   const StaysPage({super.key});
 
@@ -95,6 +97,12 @@ class _StayList extends StatelessWidget {
             subtitle: Text(
               '${displayStayDates(stay.startsOn, stay.endsOn)} · '
               '${stayKindLabel(stay.kind)}',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => StayPage(stayId: stay.id, name: stay.name),
+              ),
             ),
           ),
       ],

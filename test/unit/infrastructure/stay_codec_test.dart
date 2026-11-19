@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/stay.codec.dart';
 
 void main() {
@@ -59,5 +60,80 @@ void main() {
       'starts_on': '2027-03-06',
       'ends_on': '2027-03-07',
     });
+  });
+
+  test('lit un séjour avec sa direction', () {
+    final detail = StayCodec.detailFromJson({
+      ...json,
+      'director': {
+        'id': 'd1',
+        'first_name': 'Dominique',
+        'last_name': 'Durand',
+      },
+      'deputies': [
+        {'id': 'd2', 'first_name': 'Sacha', 'last_name': 'Bernard'},
+      ],
+      'can_manage_director': false,
+      'can_manage_deputies': true,
+    });
+
+    expect(detail.stay.name, 'Été 2027');
+    expect(detail.director?.lastName, 'Durand');
+    expect(detail.deputies.single.firstName, 'Sacha');
+    expect(detail.canManageDirector, isFalse);
+    expect(detail.canManageDeputies, isTrue);
+  });
+
+  test('un séjour sans directeur a `director` à null', () {
+    final detail = StayCodec.detailFromJson({
+      ...json,
+      'director': null,
+      'deputies': <Object?>[],
+      'can_manage_director': true,
+      'can_manage_deputies': true,
+    });
+
+    expect(detail.director, isNull);
+    expect(detail.deputies, isEmpty);
+  });
+
+  test('refuse une direction qui n\'a pas la forme attendue', () {
+    final base = {
+      ...json,
+      'director': null,
+      'deputies': <Object?>[],
+      'can_manage_director': true,
+      'can_manage_deputies': true,
+    };
+    for (final malformed in <Object?>[
+      json,
+      {...base, 'deputies': null},
+      {...base, 'can_manage_director': 'oui'},
+      {
+        ...base,
+        'director': {'id': '', 'first_name': 'X', 'last_name': 'Y'},
+      },
+    ]) {
+      expect(
+        () => StayCodec.detailFromJson(malformed),
+        throwsFormatException,
+        reason: '$malformed',
+      );
+    }
+  });
+
+  test('lit un séjour du compte connecté avec son rôle', () {
+    expect(
+      StayCodec.myStayFromJson({...json, 'role': 'director'}).role,
+      StaffRole.director,
+    );
+    expect(
+      StayCodec.myStayFromJson({...json, 'role': 'deputy'}).role,
+      StaffRole.deputy,
+    );
+    expect(
+      () => StayCodec.myStayFromJson({...json, 'role': 'animator'}),
+      throwsFormatException,
+    );
   });
 }

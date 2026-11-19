@@ -1,4 +1,5 @@
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 
 const _months = [
   'janvier',
@@ -44,6 +45,12 @@ String displayStayDates(DateTime startsOn, DateTime endsOn) {
 String stayKindLabel(StayKind kind) => switch (kind) {
   StayKind.acm => 'ACM',
   StayKind.other => 'Hors ACM',
+};
+
+/// Libellé d'un rôle dans l'équipe d'un séjour.
+String staffRoleLabel(StaffRole role) => switch (role) {
+  StaffRole.director => 'Directeur',
+  StaffRole.deputy => 'Adjoint',
 };
 
 /// Ce que la nature d'un séjour change, pour qui le crée.

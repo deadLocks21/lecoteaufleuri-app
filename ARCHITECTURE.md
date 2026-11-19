@@ -9,14 +9,16 @@ lib/
 ├── main.dart                 # Point d'entrée : ProviderScope + MaterialApp (racine : AuthGate)
 ├── core/
 │   ├── domain/               # Domain (Dart pur)
-│   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft, Stay, StayDraft
+│   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft, Stay, StayDraft,
+│   │   │                     # StayTeam (StaffRole, TeamMember, StayDetail, MyStay)
 │   │   ├── exceptions/       # AuthException, AccountException, StayException (+ codes)
 │   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository, StayRepository
 │   └── application/          # Application (Dart pur)
-│       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto
+│       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto, StayDetailDto
 │       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, RefreshSession, Logout ;
 │       │                     # accounts.usecases (ListAccounts, SaveAccount, DeleteAccount…) ;
-│       │                     # stays.usecases (ListStays, CreateStay)
+│       │                     # stays.usecases (ListStays, CreateStay) ;
+│       │                     # stay_team.usecases (GetStay, NameStaff, RemoveStaff, ListMyStays)
 │       ├── services/         # AuthApplicationService, AccountsApplicationService, StaysApplicationService
 │       └── session_state.dart  # Machine d'états de la session
 ├── infrastructure/
@@ -26,9 +28,10 @@ lib/
 │   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
 │   ├── http/                 # AuthInterceptor (Bearer, 401, 403), chemins et codes d'erreur de l'API
 │   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
-│                             # dont SessionController, AccountsController et StaysController
+│                             # dont SessionController, AccountsController, StaysController,
+│                             # StayDetailController et myStays
 └── ui/
-    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/, admin/
+    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/, admin/, stays/
     ├── widgets/              # *.widget.dart partagés : AuthGate ; phone_display, stay_display
     └── theme/                # AppThemeData : palette du logo (vert, bleu, jaune, anthracite)
 test/
@@ -67,9 +70,10 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   `403 forbidden` (`AuthInterceptor` → `SessionController.refresh()`). Sans
   réseau, la session garde ce qu'elle savait.
 - **L'accueil montre un espace par lien** du compte avec l'association, pas un
-  écran par rôle : pour l'instant, l'espace « Administration » des admins
-  (séjours et comptes). Les séjours encadrés et les enfants viendront avec
-  leurs liens.
+  écran par rôle : « Mes séjours » (ceux qu'il dirige ou seconde,
+  `GET /api/me/stays`) et, pour les admins, « Administration » (séjours et
+  comptes). Les enfants viendront avec leurs liens. Tirer l'accueil vers le
+  bas relit les droits et les séjours.
 - **Rien ne survit à une session fermée ou à des droits retirés** : `AuthGate`
   referme alors tout écran ouvert par-dessus l'accueil, et les données de ces
   écrans vivent dans des providers sans `keepAlive` (ex. `AccountsController`),
@@ -83,6 +87,12 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   choisies au calendrier). Les jours voyagent en `AAAA-MM-JJ` et vivent dans
   l'app à minuit UTC (`calendarDay`) : seuls l'année, le mois et le jour
   comptent.
+- **Direction d'un séjour** (`ui/pages/stays/`) : la fiche d'un séjour montre
+  son directeur et ses adjoints ; les boutons suivent `can_manage_director` et
+  `can_manage_deputies` rendus par l'API (admin : tout ; directeur : ses
+  adjoints ; adjoint : rien). On désigne une personne par son numéro de
+  mobile ; l'admin peut aussi la choisir dans la liste des comptes. En mémoire,
+  `InMemoryStayRepository` rejoue ces règles d'après le compte connecté.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on
   touche le `BackButton`.

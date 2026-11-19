@@ -19,4 +19,14 @@ abstract final class ApiEndpoints {
 
   /// Administration des séjours (admins seulement).
   static const adminStays = '/api/admin/stays';
+
+  /// Un séjour et sa direction (admin, directeur, adjoints).
+  static String stay(String id) => '/api/stays/$id';
+  static String stayDirector(String id) => '${stay(id)}/director';
+  static String stayDeputies(String id) => '${stay(id)}/deputies';
+  static String stayDeputy(String id, String accountId) =>
+      '${stayDeputies(id)}/$accountId';
+
+  /// Les séjours où le compte connecté est directeur ou adjoint.
+  static const myStays = '/api/me/stays';
 }
