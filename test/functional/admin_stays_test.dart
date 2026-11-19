@@ -220,5 +220,17 @@ class _FailingStayRepository implements StayRepository {
       throw StayException(code);
 
   @override
+  Future<StayDetail> addAnimator(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+    bool demote = false,
+  }) async => throw StayException(code);
+
+  @override
+  Future<StayDetail> removeAnimator(String stayId, String accountId) async =>
+      throw StayException(code);
+
+  @override
   Future<List<MyStay>> mine() async => throw StayException(code);
 }

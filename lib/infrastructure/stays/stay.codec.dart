@@ -36,20 +36,24 @@ abstract final class StayCodec {
     throw const FormatException('Stay JSON is malformed');
   }
 
-  /// Un séjour avec sa direction (`GET /api/stays/{id}` et ses actions).
+  /// Un séjour avec son équipe (`GET /api/stays/{id}` et ses actions).
   static StayDetail detailFromJson(Object? json) {
     if (json case {
       'directors': final List<Object?> directors,
       'deputies': final List<Object?> deputies,
+      'animators': final List<Object?> animators,
       'can_manage_directors': final bool canManageDirectors,
       'can_manage_deputies': final bool canManageDeputies,
+      'can_manage_animators': final bool canManageAnimators,
     }) {
       return StayDetail(
         stay: fromJson(json),
         directors: [for (final director in directors) _member(director)],
         deputies: [for (final deputy in deputies) _member(deputy)],
+        animators: [for (final animator in animators) _member(animator)],
         canManageDirectors: canManageDirectors,
         canManageDeputies: canManageDeputies,
+        canManageAnimators: canManageAnimators,
       );
     }
     throw const FormatException('Stay detail JSON is malformed');
@@ -63,6 +67,7 @@ abstract final class StayCodec {
         role: switch (role) {
           'director' => StaffRole.director,
           'deputy' => StaffRole.deputy,
+          'animator' => StaffRole.animator,
           _ => throw const FormatException('Unknown staff role'),
         },
       );

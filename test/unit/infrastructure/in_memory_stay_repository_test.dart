@@ -70,14 +70,20 @@ void main() {
     await expectLater(as(sacha).get(summer), failsWith(StayErrorCode.notFound));
   });
 
-  test('hors ACM, ni directeur ni adjoint', () async {
+  test('hors ACM, ni directeur, ni adjoint, ni animateur', () async {
     final repository = as('admin', admin: true);
 
     await expectLater(
       repository.nameDirector(weekend, sachaPhone),
       failsWith(StayErrorCode.notAcm),
     );
-    expect((await repository.get(weekend)).canManageDirectors, isFalse);
+    await expectLater(
+      repository.addAnimator(weekend, sachaPhone),
+      failsWith(StayErrorCode.notAcm),
+    );
+    final detail = await repository.get(weekend);
+    expect(detail.canManageDirectors, isFalse);
+    expect(detail.canManageAnimators, isFalse);
   });
 
   test('le directeur ne peut pas être adjoint, et le numéro doit avoir un '
@@ -109,6 +115,70 @@ void main() {
     );
 
     expect(detail.deputies.single.lastName, 'Petit');
+  });
+
+  test('directeur et adjoint ajoutent ou retirent des animateurs, qui ne '
+      'voient pas le séjour', () async {
+    const camille = '0a5c0000-0000-4000-8000-0000000000ff';
+    final camillePhone = PhoneNumber.parse('06 12 34 56 78');
+    final staff = {
+      summer: {dominique: StaffRole.director, sacha: StaffRole.deputy},
+    };
+    final repository = InMemoryStayRepository(
+      staff: staff,
+      viewer: () => (id: sacha, isAdmin: false),
+    );
+
+    final detail = await repository.addAnimator(summer, camillePhone);
+    expect(detail.animators.single.id, camille);
+    expect(detail.canManageAnimators, isTrue);
+    expect(
+      (await repository.removeAnimator(summer, camille)).animators,
+      isEmpty,
+    );
+
+    await repository.addAnimator(summer, camillePhone);
+    final animator = InMemoryStayRepository(
+      staff: {
+        summer: {camille: StaffRole.animator},
+      },
+      viewer: () => (id: camille, isAdmin: false),
+    );
+    await expectLater(animator.get(summer), failsWith(StayErrorCode.forbidden));
+    expect(await animator.mine(), isEmpty);
+  });
+
+  test('un membre de la direction ne passe animateur que sur confirmation, '
+      'et par qui peut le retirer de son rôle', () async {
+    InMemoryStayRepository viewedBy(String id) => InMemoryStayRepository(
+      staff: {
+        summer: {dominique: StaffRole.director, sacha: StaffRole.deputy},
+      },
+      viewer: () => (id: id, isAdmin: false),
+    );
+
+    await expectLater(
+      viewedBy(dominique).addAnimator(summer, sachaPhone),
+      failsWith(StayErrorCode.alreadyDeputy),
+    );
+    await expectLater(
+      viewedBy(dominique).addAnimator(summer, dominiquePhone),
+      failsWith(StayErrorCode.alreadyDirector),
+    );
+    await expectLater(
+      viewedBy(dominique).addAnimator(summer, dominiquePhone, demote: true),
+      failsWith(StayErrorCode.forbidden),
+    );
+    await expectLater(
+      viewedBy(sacha).addAnimator(summer, sachaPhone, demote: true),
+      failsWith(StayErrorCode.forbidden),
+    );
+
+    final detail = await viewedBy(
+      dominique,
+    ).addAnimator(summer, sachaPhone, demote: true);
+    expect(detail.deputies, isEmpty);
+    expect(detail.animators.single.id, sacha);
   });
 
   test('hors ACM, aucun compte n\'est créé', () async {

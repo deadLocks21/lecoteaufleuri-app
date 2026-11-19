@@ -9,8 +9,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'stay_detail.controller_provider.g.dart';
 
-/// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
-/// adjoints).
+/// Un séjour et son équipe, et ce qu'on peut y changer (directeurs, adjoints,
+/// animateurs).
 ///
 /// Libéré dès que l'écran se ferme (pas de `keepAlive`). Les actions rendent
 /// `null` en cas de succès, sinon l'[StayErrorCode] que l'écran traduit ; le
@@ -23,12 +23,14 @@ class StayDetailController extends _$StayDetailController {
   Future<StayDetailDto> build(String stayId) =>
       ref.watch(staysServiceProvider).get.execute(stayId);
 
-  /// Avec [firstName] et [lastName], un numéro sans compte en reçoit un.
+  /// Avec [firstName] et [lastName], un numéro sans compte en reçoit un ;
+  /// avec [demote], un membre de la direction passe animateur.
   Future<StayErrorCode?> name(
     StaffRole role, {
     required String rawPhone,
     String? firstName,
     String? lastName,
+    bool demote = false,
   }) => _run(
     () => _service.nameStaff.execute(
       stayId,
@@ -36,6 +38,7 @@ class StayDetailController extends _$StayDetailController {
       rawPhone: rawPhone,
       firstName: firstName,
       lastName: lastName,
+      demote: demote,
     ),
   );
 

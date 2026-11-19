@@ -26,11 +26,16 @@ enum StayErrorCode {
   /// Prénom ou nom vide pour le compte à créer.
   invalidPersonName,
 
-  /// Directeur ou adjoint sur un séjour hors ACM.
+  /// Directeur, adjoint ou animateur sur un séjour hors ACM.
   notAcm,
 
-  /// Nommer adjoint le directeur du séjour.
+  /// Nommer adjoint un directeur du séjour, ou animateur sans confirmer qu'il
+  /// quitte la direction.
   alreadyDirector,
+
+  /// Nommer animateur un adjoint du séjour sans confirmer qu'il quitte la
+  /// direction.
+  alreadyDeputy,
 
   /// Le jeton a été refusé : la connexion est relancée.
   sessionExpired,

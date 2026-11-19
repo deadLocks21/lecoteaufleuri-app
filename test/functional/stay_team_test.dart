@@ -15,7 +15,7 @@ import 'package:lecoteaufleuri/main.dart';
 
 import '../helpers/fake_auth_repository.dart';
 
-/// La direction d'un séjour de bout en bout, en mémoire. Séjours de démo :
+/// L'équipe d'un séjour de bout en bout, en mémoire. Séjours de démo :
 /// « Été 2027 — Pyrénées » (ACM, dirigé par Dominique Durand) et « Week-end
 /// des animateurs » (hors ACM). Comptes de démo : Camille Démo (admin),
 /// Dominique Durand (06 22 22 22 22), Sacha Bernard (06 33 33 33 33).
@@ -83,6 +83,8 @@ void main() {
     expect(find.byKey(const Key('noDeputies')), findsOneWidget);
     expect(find.byKey(const Key('addDirectorButton')), findsOneWidget);
     expect(find.byKey(const Key('addDeputyButton')), findsOneWidget);
+    expect(find.byKey(const Key('noAnimators')), findsOneWidget);
+    expect(find.byKey(const Key('addAnimatorButton')), findsOneWidget);
   });
 
   testWidgets('un séjour hors ACM n\'a pas de direction', (tester) async {
@@ -91,6 +93,7 @@ void main() {
 
     expect(find.byKey(const Key('noDirection')), findsOneWidget);
     expect(find.byKey(const Key('addDirectorButton')), findsNothing);
+    expect(find.byKey(const Key('addAnimatorButton')), findsNothing);
   });
 
   testWidgets(
@@ -256,7 +259,99 @@ void main() {
     expect(find.byKey(const Key('addDirectorButton')), findsNothing);
     expect(find.byKey(const Key('addDeputyButton')), findsNothing);
     expect(find.byKey(const Key('removeDeputy-$sachaId')), findsNothing);
+    // Il affecte en revanche les animateurs.
+    expect(find.byKey(const Key('addAnimatorButton')), findsOneWidget);
   });
+
+  testWidgets('un adjoint ajoute un animateur par son numéro, puis le retire', (
+    tester,
+  ) async {
+    await launchAs(
+      tester,
+      sacha,
+      staff: {
+        summer: {dominiqueId: StaffRole.director, sachaId: StaffRole.deputy},
+      },
+    );
+    await tester.tap(find.byKey(const Key('myStay-$summer')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('addAnimatorButton')));
+    await tester.pumpAndSettle();
+    expect(find.text('Ajouter un animateur'), findsOneWidget);
+    await nameByPhone(tester, '06 12 34 56 78');
+
+    expect(find.text('Animateur ajouté.'), findsOneWidget);
+    expect(find.byKey(Key('animator-${demo.id}')), findsOneWidget);
+
+    await tester.tap(find.byKey(Key('removeAnimator-${demo.id}')));
+    await tester.pumpAndSettle();
+    expect(find.text('Retirer cet animateur ?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirmButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Animateur retiré.'), findsOneWidget);
+    expect(find.byKey(const Key('noAnimators')), findsOneWidget);
+  });
+
+  testWidgets(
+    'le directeur fait passer un adjoint animateur, après confirmation',
+    (tester) async {
+      await launchAs(
+        tester,
+        dominique,
+        staff: {
+          summer: {dominiqueId: StaffRole.director, sachaId: StaffRole.deputy},
+        },
+      );
+      await tester.tap(find.byKey(const Key('myStay-$summer')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('addAnimatorButton')));
+      await tester.pumpAndSettle();
+
+      // Annuler laisse tout en l'état.
+      await nameByPhone(tester, '06 33 33 33 33');
+      expect(find.text('Passer animateur ?'), findsOneWidget);
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('staffPhoneField')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('nameStaffButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirmDemoteButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Adjoint passé animateur.'), findsOneWidget);
+      expect(find.byKey(const Key('animator-$sachaId')), findsOneWidget);
+      expect(find.byKey(const Key('deputy-$sachaId')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'un adjoint ne peut pas faire passer un directeur animateur : le numéro '
+    'est refusé sans confirmation',
+    (tester) async {
+      await launchAs(
+        tester,
+        sacha,
+        staff: {
+          summer: {dominiqueId: StaffRole.director, sachaId: StaffRole.deputy},
+        },
+      );
+      await tester.tap(find.byKey(const Key('myStay-$summer')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('addAnimatorButton')));
+      await tester.pumpAndSettle();
+
+      await nameByPhone(tester, '06 22 22 22 22');
+
+      expect(find.text('Passer animateur ?'), findsNothing);
+      expect(
+        find.text('Cette personne dirige déjà le séjour.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('l\'admin qui se nomme adjoint retrouve le séjour à l\'accueil', (
     tester,

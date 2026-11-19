@@ -59,4 +59,34 @@ void main() {
       ),
     );
   });
+
+  test('ajoute un animateur, et ne rétrograde que sur demande', () async {
+    final useCase = NameStaffUseCase(InMemoryStayRepository());
+
+    final added = await useCase.execute(
+      summer,
+      StaffRole.animator,
+      rawPhone: '06 33 33 33 33',
+    );
+    expect(added.animators.single.lastName, 'Bernard');
+
+    await expectLater(
+      useCase.execute(summer, StaffRole.animator, rawPhone: '06 22 22 22 22'),
+      throwsA(
+        isA<StayException>().having(
+          (e) => e.code,
+          'code',
+          StayErrorCode.alreadyDirector,
+        ),
+      ),
+    );
+    final demoted = await useCase.execute(
+      summer,
+      StaffRole.animator,
+      rawPhone: '06 22 22 22 22',
+      demote: true,
+    );
+    expect(demoted.directors, isEmpty);
+    expect(demoted.animators.map((a) => a.lastName), ['Bernard', 'Durand']);
+  });
 }

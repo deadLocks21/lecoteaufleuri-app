@@ -71,6 +71,7 @@ void main() {
       (404, 'unknown_phone_number', StayErrorCode.unknownPhone),
       (409, 'not_an_acm_stay', StayErrorCode.notAcm),
       (409, 'already_director', StayErrorCode.alreadyDirector),
+      (409, 'already_deputy', StayErrorCode.alreadyDeputy),
       (400, 'invalid_user_name', StayErrorCode.invalidPersonName),
       (400, 'invalid_phone_format', StayErrorCode.invalidPhone),
       (500, 'boom', StayErrorCode.unknown),
@@ -125,7 +126,7 @@ void main() {
     );
   });
 
-  test('pilote la direction d\'un séjour sur ses routes', () async {
+  test('pilote l\'équipe d\'un séjour sur ses routes', () async {
     const stay = '5d1e0000-0000-4000-8000-000000000001';
     const deputy = '0a5c0000-0000-4000-8000-000000000102';
     final adapter = FakeHttpAdapter(
@@ -133,8 +134,10 @@ void main() {
         ...stayJson,
         'directors': <Object?>[],
         'deputies': <Object?>[],
+        'animators': <Object?>[],
         'can_manage_directors': true,
         'can_manage_deputies': true,
+        'can_manage_animators': true,
       }),
     );
     final repository = DioStayRepository(dioWith(adapter));
@@ -145,6 +148,8 @@ void main() {
     await repository.removeDirector(stay, deputy);
     await repository.addDeputy(stay, phone);
     await repository.removeDeputy(stay, deputy);
+    await repository.addAnimator(stay, phone);
+    await repository.removeAnimator(stay, deputy);
 
     expect(adapter.requests.map((r) => '${r.method} ${r.path}'), [
       'GET /api/stays/$stay',
@@ -152,8 +157,44 @@ void main() {
       'DELETE /api/stays/$stay/directors/$deputy',
       'POST /api/stays/$stay/deputies',
       'DELETE /api/stays/$stay/deputies/$deputy',
+      'POST /api/stays/$stay/animators',
+      'DELETE /api/stays/$stay/animators/$deputy',
     ]);
     expect(adapter.requests[1].data, {'phone_number': '+33633333333'});
+    expect(adapter.requests[5].data, {'phone_number': '+33633333333'});
+  });
+
+  test('ne demande de rétrograder que sur confirmation', () async {
+    const stay = '5d1e0000-0000-4000-8000-000000000001';
+    final adapter = FakeHttpAdapter(
+      (request) => (request.data as Map<String, dynamic>)['demote'] == true
+          ? FakeHttpAdapter.json({
+              ...stayJson,
+              'directors': <Object?>[],
+              'deputies': <Object?>[],
+              'animators': <Object?>[],
+              'can_manage_directors': true,
+              'can_manage_deputies': true,
+              'can_manage_animators': true,
+            })
+          : FakeHttpAdapter.json({
+              'error': 'Cette personne est adjointe du séjour.',
+              'code': 'already_deputy',
+            }, status: 409),
+    );
+    final repository = DioStayRepository(dioWith(adapter));
+    final phone = PhoneNumber.parse('06 33 33 33 33');
+
+    await expectLater(
+      repository.addAnimator(stay, phone),
+      failsWith(StayErrorCode.alreadyDeputy),
+    );
+    await repository.addAnimator(stay, phone, demote: true);
+
+    expect(adapter.requests.last.data, {
+      'phone_number': '+33633333333',
+      'demote': true,
+    });
   });
 
   test('liste les séjours du compte connecté', () async {
@@ -178,8 +219,10 @@ void main() {
         ...stayJson,
         'directors': <Object?>[],
         'deputies': <Object?>[],
+        'animators': <Object?>[],
         'can_manage_directors': true,
         'can_manage_deputies': true,
+        'can_manage_animators': true,
       }),
     );
     final repository = DioStayRepository(dioWith(adapter));

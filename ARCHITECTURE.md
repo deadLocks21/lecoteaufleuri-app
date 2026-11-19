@@ -87,13 +87,18 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   choisies au calendrier). Les jours voyagent en `AAAA-MM-JJ` et vivent dans
   l'app à minuit UTC (`calendarDay`) : seuls l'année, le mois et le jour
   comptent.
-- **Direction d'un séjour** (`ui/pages/stays/`) : la fiche d'un séjour montre
-  ses directeurs (un ou plusieurs, égaux) et ses adjoints ; les boutons suivent
-  `can_manage_directors` et `can_manage_deputies` rendus par l'API (admin :
-  tout ; directeur : les adjoints ; adjoint : rien). On désigne une personne par son numéro de
-  mobile ; l'admin peut aussi la choisir dans la liste des comptes. Un numéro
-  sans compte (`unknown_phone_number`) fait apparaître prénom et nom : la même
-  requête, avec eux, crée le compte et nomme la personne, tout ou rien. En mémoire,
+- **Équipe d'un séjour** (`ui/pages/stays/`) : la fiche d'un séjour montre
+  ses directeurs (un ou plusieurs, égaux), ses adjoints et ses animateurs ; les
+  boutons suivent `can_manage_directors`, `can_manage_deputies` et
+  `can_manage_animators` rendus par l'API (admin : tout ; directeur : les
+  adjoints et les animateurs ; adjoint : les animateurs). On désigne une
+  personne par son numéro de mobile ; l'admin peut aussi la choisir dans la
+  liste des comptes. Un numéro sans compte (`unknown_phone_number`) fait
+  apparaître prénom et nom : la même requête, avec eux, crée le compte et nomme
+  la personne, tout ou rien. De même, nommer animateur un membre de la
+  direction (`already_director`, `already_deputy`) demande une confirmation,
+  puis renvoie la requête avec `demote` — seulement si l'appelant peut le
+  retirer de son rôle ; sinon l'erreur s'affiche sous le numéro. En mémoire,
   `InMemoryStayRepository` rejoue ces règles d'après le compte connecté.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on

@@ -10,13 +10,16 @@ import 'package:lecoteaufleuri/infrastructure/providers/session.controller_provi
 import 'package:lecoteaufleuri/infrastructure/providers/stay_detail.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_error_message.dart';
 import 'package:lecoteaufleuri/ui/widgets/phone_display.dart';
+import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
-/// Nommer le directeur ou ajouter un adjoint d'un séjour.
+/// Ajouter un directeur, un adjoint ou un animateur à un séjour.
 ///
 /// On désigne la personne par son numéro de mobile : le directeur ne voit pas
 /// la liste des comptes. L'admin, qui la voit, peut aussi choisir dans cette
 /// liste. Un numéro sans compte en reçoit un : la page demande alors prénom et
-/// nom. Se referme en rendant le message à afficher sur le séjour.
+/// nom. Un membre de la direction ne passe animateur qu'après confirmation, et
+/// si le compte connecté peut le retirer de son rôle. Se referme en rendant le
+/// message à afficher sur le séjour.
 class StaffPickerPage extends ConsumerStatefulWidget {
   final String stayId;
   final StaffRole role;
@@ -39,8 +42,6 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
   /// reste dans le champ, on demande prénom et nom pour le lui créer.
   String? _unknownNumber;
 
-  bool get _director => widget.role == StaffRole.director;
-
   bool get _creating => _unknownNumber != null;
 
   @override
@@ -53,7 +54,13 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
   }
 
   /// Nomme le compte de [rawPhone] ; en création, avec les noms saisis.
-  Future<void> _submit(String rawPhone, {bool create = false}) async {
+  /// [demoting] : le rôle de direction qu'il quitte pour passer animateur,
+  /// une fois confirmé.
+  Future<void> _submit(
+    String rawPhone, {
+    bool create = false,
+    StaffRole? demoting,
+  }) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -65,20 +72,32 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
           rawPhone: rawPhone,
           firstName: create ? _firstName.text : null,
           lastName: create ? _lastName.text : null,
+          demote: demoting != null,
         );
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop(switch ((create, _director)) {
-        (true, true) => 'Compte créé, directeur ajouté.',
-        (true, false) => 'Compte créé, adjoint ajouté.',
-        (false, true) => 'Directeur ajouté.',
-        (false, false) => 'Adjoint ajouté.',
+      final role = staffRoleLabel(widget.role);
+      final named = role.toLowerCase();
+      Navigator.of(context).pop(switch ((create, demoting)) {
+        (_, final StaffRole from) => '${staffRoleLabel(from)} passé $named.',
+        (true, null) => 'Compte créé, $named ajouté.',
+        (false, null) => '$role ajouté.',
       });
       return;
     }
     // Plus de séjour, ou plus le droit : rien à faire ici.
     if (error == StayErrorCode.notFound || error == StayErrorCode.forbidden) {
       Navigator.of(context).pop(stayErrorMessage(error));
+      return;
+    }
+    // Un membre de la direction que l'on peut faire passer animateur : on
+    // demande d'abord.
+    final from = _demotable(error);
+    if (from != null) {
+      setState(() => _busy = false);
+      if (await _confirmDemotion(from) && mounted) {
+        await _submit(rawPhone, create: create, demoting: from);
+      }
       return;
     }
     setState(() {
@@ -90,6 +109,50 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
         _error = error;
       }
     });
+  }
+
+  /// Le rôle de direction que tient le compte visé, si [error] le signale et
+  /// que le compte connecté peut l'en retirer (ce que l'API revérifie) ; null
+  /// sinon : l'erreur s'affiche alors sous le numéro.
+  StaffRole? _demotable(StayErrorCode error) {
+    if (widget.role != StaffRole.animator) return null;
+    final detail = ref.read(stayDetailControllerProvider(widget.stayId)).value;
+    return switch (error) {
+      StayErrorCode.alreadyDirector when detail?.canManageDirectors ?? false =>
+        StaffRole.director,
+      StayErrorCode.alreadyDeputy when detail?.canManageDeputies ?? false =>
+        StaffRole.deputy,
+      _ => null,
+    };
+  }
+
+  Future<bool> _confirmDemotion(StaffRole from) async {
+    final who = from == StaffRole.director
+        ? 'Cette personne dirige le séjour.'
+        : 'Cette personne fait partie des adjoints du séjour.';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Passer animateur ?'),
+        content: Text(
+          '$who En passant animateur, elle quittera la direction et n\'aura '
+          'plus la main sur l\'équipe.',
+          key: const Key('demoteHint'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            key: const Key('confirmDemoteButton'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Passer animateur'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
   }
 
   void _clearError() {
@@ -114,6 +177,7 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
       StayErrorCode.invalidPhone,
       StayErrorCode.unknownPhone,
       StayErrorCode.alreadyDirector,
+      StayErrorCode.alreadyDeputy,
     };
     final phoneError = fieldErrors.contains(error)
         ? stayErrorMessage(error!)
@@ -132,10 +196,30 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
         ? stayErrorMessage(error)
         : null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_director ? 'Ajouter un directeur' : 'Ajouter un adjoint'),
+    final (title, help, action) = switch (widget.role) {
+      StaffRole.director => (
+        'Ajouter un directeur',
+        'Il rejoint les autres directeurs du séjour, avec les mêmes droits. '
+            'Un adjoint ou un animateur nommé directeur quitte son rôle.',
+        'Nommer directeur',
       ),
+      StaffRole.deputy => (
+        'Ajouter un adjoint',
+        'L\'adjoint a les droits du directeur sur ce séjour, sauf nommer ou '
+            'retirer des adjoints. Un animateur nommé adjoint quitte les '
+            'animateurs.',
+        'Nommer adjoint',
+      ),
+      StaffRole.animator => (
+        'Ajouter un animateur',
+        'L\'animateur rejoint l\'équipe du séjour, sans la main sur '
+            'l\'équipe.',
+        'Nommer animateur',
+      ),
+    };
+
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
@@ -143,12 +227,7 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
             padding: const EdgeInsets.all(24),
             children: [
               Text(
-                _director
-                    ? 'Il rejoint les autres directeurs du séjour, avec les '
-                          'mêmes droits. Un adjoint nommé directeur quitte les '
-                          'adjoints.'
-                    : 'L\'adjoint a les droits du directeur sur ce séjour, '
-                          'sauf nommer ou retirer des adjoints.',
+                help,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -225,13 +304,7 @@ class _StaffPickerPageState extends ConsumerState<StaffPickerPage> {
                 onPressed: _busy
                     ? null
                     : () => _submit(_phone.text, create: _creating),
-                child: Text(
-                  _creating
-                      ? 'Créer le compte et nommer'
-                      : _director
-                      ? 'Nommer directeur'
-                      : 'Nommer adjoint',
-                ),
+                child: Text(_creating ? 'Créer le compte et nommer' : action),
               ),
               if (isAdmin) ...[
                 const SizedBox(height: 32),

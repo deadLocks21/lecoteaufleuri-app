@@ -5,7 +5,7 @@ import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 import 'package:lecoteaufleuri/core/domain/services/stay.repository.dart';
 
-/// Un séjour et sa direction.
+/// Un séjour et son équipe.
 class GetStayUseCase {
   final StayRepository _stays;
 
@@ -15,9 +15,10 @@ class GetStayUseCase {
       StayDetailDto.fromDomain(await _stays.get(stayId));
 }
 
-/// Nomme le directeur ([StaffRole.director]) ou ajoute un adjoint
-/// ([StaffRole.deputy]), désigné par son numéro de mobile en saisie libre.
-/// Avec [firstName] et [lastName], un numéro sans compte en reçoit un.
+/// Ajoute un directeur, un adjoint ou un animateur selon [StaffRole], désigné
+/// par son numéro de mobile en saisie libre. Avec [firstName] et [lastName], un
+/// numéro sans compte en reçoit un ; avec `demote`, un membre de la direction
+/// passe animateur.
 class NameStaffUseCase {
   final StayRepository _stays;
 
@@ -31,6 +32,7 @@ class NameStaffUseCase {
     required String rawPhone,
     String? firstName,
     String? lastName,
+    bool demote = false,
   }) async {
     final PhoneNumber phone;
     try {
@@ -55,12 +57,18 @@ class NameStaffUseCase {
         phone,
         newAccount: newAccount,
       ),
+      StaffRole.animator => await _stays.addAnimator(
+        stayId,
+        phone,
+        newAccount: newAccount,
+        demote: demote,
+      ),
     };
     return StayDetailDto.fromDomain(detail);
   }
 }
 
-/// Retire le directeur ou l'adjoint [accountId].
+/// Retire le directeur, l'adjoint ou l'animateur [accountId].
 class RemoveStaffUseCase {
   final StayRepository _stays;
 
@@ -74,6 +82,7 @@ class RemoveStaffUseCase {
     final detail = switch (role) {
       StaffRole.director => await _stays.removeDirector(stayId, accountId),
       StaffRole.deputy => await _stays.removeDeputy(stayId, accountId),
+      StaffRole.animator => await _stays.removeAnimator(stayId, accountId),
     };
     return StayDetailDto.fromDomain(detail);
   }

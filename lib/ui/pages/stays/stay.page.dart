@@ -9,11 +9,12 @@ import 'package:lecoteaufleuri/ui/pages/admin/stay_error_message.dart';
 import 'package:lecoteaufleuri/ui/pages/stays/staff_picker.page.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
-/// Un séjour et sa direction, pour l'admin, son directeur et ses adjoints.
+/// Un séjour et son équipe, pour l'admin, ses directeurs et ses adjoints.
 ///
 /// Les boutons suivent ce que l'API dit permettre au compte connecté :
 /// l'admin nomme ou retire les directeurs, l'admin et les directeurs nomment
-/// ou retirent les adjoints. L'API revérifie chaque action.
+/// ou retirent les adjoints, et tous trois ajoutent ou retirent les
+/// animateurs. L'API revérifie chaque action.
 class StayPage extends ConsumerWidget {
   final String stayId;
 
@@ -76,14 +77,11 @@ class _StayView extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          role == StaffRole.director
-              ? 'Retirer ce directeur ?'
-              : 'Retirer cet adjoint ?',
-        ),
+        title: Text('${_texts(role).remove} ?'),
         content: Text(
-          '${member.fullName} ne fera plus partie de la direction de '
-          '« ${detail.stay.name} ».',
+          '${member.fullName} ne fera plus partie '
+          '${role == StaffRole.animator ? 'de l\'équipe' : 'de la direction'} '
+          'de « ${detail.stay.name} ».',
         ),
         actions: [
           TextButton(
@@ -108,11 +106,46 @@ class _StayView extends ConsumerWidget {
       context,
       error != null
           ? stayErrorMessage(error)
-          : role == StaffRole.director
-          ? 'Directeur retiré.'
-          : 'Adjoint retiré.',
+          : '${staffRoleLabel(role)} retiré.',
     );
   }
+
+  /// Les libellés d'une section, selon le rôle, et le nom du rôle dans les
+  /// clés de ses widgets (`addDeputyButton`, `noDeputies`…).
+  static ({
+    String key,
+    String keys,
+    String none,
+    String remove,
+    String add,
+    IconData icon,
+  })
+  _texts(StaffRole role) => switch (role) {
+    StaffRole.director => (
+      key: 'Director',
+      keys: 'Directors',
+      none: 'Aucun directeur',
+      remove: 'Retirer ce directeur',
+      add: 'Ajouter un directeur',
+      icon: Icons.workspace_premium_outlined,
+    ),
+    StaffRole.deputy => (
+      key: 'Deputy',
+      keys: 'Deputies',
+      none: 'Aucun adjoint',
+      remove: 'Retirer cet adjoint',
+      add: 'Ajouter un adjoint',
+      icon: Icons.person_outline,
+    ),
+    StaffRole.animator => (
+      key: 'Animator',
+      keys: 'Animators',
+      none: 'Aucun animateur',
+      remove: 'Retirer cet animateur',
+      add: 'Ajouter un animateur',
+      icon: Icons.emoji_people_outlined,
+    ),
+  };
 
   /// Un message remplace le précédent au lieu d'attendre qu'il disparaisse.
   static void _tell(BuildContext context, String message) =>
@@ -120,8 +153,8 @@ class _StayView extends ConsumerWidget {
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(message)));
 
-  /// Les directeurs ou les adjoints : un titre, chaque membre (retirable si
-  /// [canManage]) et de quoi en nommer un autre.
+  /// Les directeurs, les adjoints ou les animateurs : un titre, chaque
+  /// membre (retirable si [canManage]) et de quoi en nommer un autre.
   List<Widget> _section(
     BuildContext context,
     WidgetRef ref, {
@@ -131,17 +164,16 @@ class _StayView extends ConsumerWidget {
     required bool canManage,
   }) {
     final theme = Theme.of(context);
-    final director = role == StaffRole.director;
-    final name = director ? 'director' : 'deputy';
+    final texts = _texts(role);
     return [
       Text(title, style: theme.textTheme.titleSmall),
       if (members.isEmpty)
         ListTile(
-          key: Key(director ? 'noDirectors' : 'noDeputies'),
+          key: Key('no${texts.keys}'),
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.person_outline),
           title: Text(
-            director ? 'Aucun directeur' : 'Aucun adjoint',
+            texts.none,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -149,21 +181,14 @@ class _StayView extends ConsumerWidget {
         ),
       for (final member in members)
         ListTile(
-          key: Key('$name-${member.id}'),
+          key: Key('${role.name}-${member.id}'),
           contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            director ? Icons.workspace_premium_outlined : Icons.person_outline,
-          ),
+          leading: Icon(texts.icon),
           title: Text(member.fullName),
           trailing: canManage
               ? IconButton(
-                  key: Key(
-                    '${director ? 'removeDirector' : 'removeDeputy'}-'
-                    '${member.id}',
-                  ),
-                  tooltip: director
-                      ? 'Retirer ce directeur'
-                      : 'Retirer cet adjoint',
+                  key: Key('remove${texts.key}-${member.id}'),
+                  tooltip: texts.remove,
                   icon: const Icon(Icons.person_remove_outlined),
                   onPressed: () => _remove(context, ref, role, member),
                 )
@@ -173,12 +198,10 @@ class _StayView extends ConsumerWidget {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            key: Key(director ? 'addDirectorButton' : 'addDeputyButton'),
+            key: Key('add${texts.key}Button'),
             onPressed: () => _name(context, role),
             icon: const Icon(Icons.person_add_alt_1),
-            label: Text(
-              director ? 'Ajouter un directeur' : 'Ajouter un adjoint',
-            ),
+            label: Text(texts.add),
           ),
         ),
     ];
@@ -208,7 +231,7 @@ class _StayView extends ConsumerWidget {
         const SizedBox(height: 24),
         if (stay.kind != StayKind.acm)
           Text(
-            'Séjour hors ACM : il n\'a ni directeur ni adjoint.',
+            'Séjour hors ACM : il n\'a ni direction ni animateurs.',
             key: const Key('noDirection'),
             style: muted,
           )
@@ -229,6 +252,15 @@ class _StayView extends ConsumerWidget {
             title: 'Adjoints',
             members: detail.deputies,
             canManage: detail.canManageDeputies,
+          ),
+          const SizedBox(height: 16),
+          ..._section(
+            context,
+            ref,
+            role: StaffRole.animator,
+            title: 'Animateurs',
+            members: detail.animators,
+            canManage: detail.canManageAnimators,
           ),
         ],
       ],

@@ -51,6 +51,7 @@ String stayKindLabel(StayKind kind) => switch (kind) {
 String staffRoleLabel(StaffRole role) => switch (role) {
   StaffRole.director => 'Directeur',
   StaffRole.deputy => 'Adjoint',
+  StaffRole.animator => 'Animateur',
 };
 
 /// Ce que la nature d'un séjour change, pour qui le crée.

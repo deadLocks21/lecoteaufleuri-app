@@ -12,8 +12,8 @@ import 'package:lecoteaufleuri/infrastructure/auth/in_memory.auth.repository.dar
 typedef StayViewer = ({String id, bool isAdmin});
 
 /// Séjours en mémoire (dev sans serveur, tests), avec les règles de l'API :
-/// tri, direction réservée aux ACM, un rôle par compte, et
-/// les droits du compte connecté (admin, directeur ou adjoint).
+/// tri, équipe réservée aux ACM, un rôle par compte, et les droits du compte
+/// connecté (admin, directeur, adjoint ou animateur).
 class InMemoryStayRepository implements StayRepository {
   final List<Stay> _stays;
   final List<User> _accounts;
@@ -88,7 +88,8 @@ class InMemoryStayRepository implements StayRepository {
   }
 
   @override
-  Future<StayDetail> get(String stayId) async => _detail(_visible(stayId));
+  Future<StayDetail> get(String stayId) async =>
+      _detail(_allowed(stayId, _direction));
 
   @override
   Future<StayDetail> nameDirector(
@@ -100,7 +101,7 @@ class InMemoryStayRepository implements StayRepository {
     _requireAcm(stay);
     final account = _account(phone, newAccount);
     final team = _team(stay);
-    // Un adjoint nommé directeur quitte les adjoints.
+    // Un adjoint ou un animateur nommé directeur quitte son rôle.
     team[account.id] = StaffRole.director;
     return _detail(stay);
   }
@@ -126,6 +127,7 @@ class InMemoryStayRepository implements StayRepository {
     if (team[account.id] == StaffRole.director) {
       throw const StayException(StayErrorCode.alreadyDirector);
     }
+    // Un animateur nommé adjoint quitte les animateurs.
     team[account.id] = StaffRole.deputy;
     return _detail(stay);
   }
@@ -139,11 +141,55 @@ class InMemoryStayRepository implements StayRepository {
   }
 
   @override
+  Future<StayDetail> addAnimator(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+    bool demote = false,
+  }) async {
+    final stay = _allowed(stayId, _direction);
+    _requireAcm(stay);
+    final account = _account(phone, newAccount);
+    final team = _team(stay);
+    final current = team[account.id];
+    // Rétrograder demande le droit de retirer la personne de son rôle.
+    if (demote && current == StaffRole.director) {
+      _allowed(stayId, (role) => false);
+    }
+    if (demote && current == StaffRole.deputy) {
+      _allowed(stayId, (role) => role == StaffRole.director);
+    }
+    if (!demote && current == StaffRole.director) {
+      throw const StayException(StayErrorCode.alreadyDirector);
+    }
+    if (!demote && current == StaffRole.deputy) {
+      throw const StayException(StayErrorCode.alreadyDeputy);
+    }
+    team[account.id] = StaffRole.animator;
+    return _detail(stay);
+  }
+
+  @override
+  Future<StayDetail> removeAnimator(String stayId, String accountId) async {
+    final stay = _allowed(stayId, _direction);
+    final team = _team(stay);
+    if (team[accountId] == StaffRole.animator) team.remove(accountId);
+    return _detail(stay);
+  }
+
+  /// Comme l'API, seuls les séjours dont le compte ouvre la fiche : un
+  /// animateur n'y voit pas (encore) le sien.
+  @override
   Future<List<MyStay>> mine() async => [
     for (final stay in _sorted(_stays))
-      if (_roleOf(stay) case final StaffRole role)
+      if (_roleOf(stay) case final StaffRole role when _direction(role))
         MyStay(stay: stay, role: role),
   ];
+
+  /// Directeurs et adjoints : voir le séjour et son équipe, y affecter les
+  /// animateurs.
+  static bool _direction(StaffRole role) =>
+      role == StaffRole.director || role == StaffRole.deputy;
 
   StaffRole? _roleOf(Stay stay) => _staff[stay.id]?[_viewer().id];
 
@@ -230,8 +276,10 @@ class InMemoryStayRepository implements StayRepository {
       stay: stay,
       directors: members(StaffRole.director),
       deputies: members(StaffRole.deputy),
+      animators: members(StaffRole.animator),
       canManageDirectors: _can(stay, (role) => false),
       canManageDeputies: _can(stay, (role) => role == StaffRole.director),
+      canManageAnimators: _can(stay, _direction),
     );
   }
 

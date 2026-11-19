@@ -70,6 +70,26 @@ class DioStayRepository implements StayRepository {
       );
 
   @override
+  Future<StayDetail> addAnimator(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+    bool demote = false,
+  }) async => _detail(
+    await _send(
+      'POST',
+      ApiEndpoints.stayAnimators(stayId),
+      data: {..._staff(phone, newAccount), if (demote) 'demote': true},
+    ),
+  );
+
+  @override
+  Future<StayDetail> removeAnimator(String stayId, String accountId) async =>
+      _detail(
+        await _send('DELETE', ApiEndpoints.stayAnimator(stayId, accountId)),
+      );
+
+  @override
   Future<List<MyStay>> mine() async =>
       _list(await _send('GET', ApiEndpoints.myStays), StayCodec.myStayFromJson);
 
@@ -152,6 +172,7 @@ class DioStayRepository implements StayRepository {
       'invalid_user_name' => StayErrorCode.invalidPersonName,
       'not_an_acm_stay' => StayErrorCode.notAcm,
       'already_director' => StayErrorCode.alreadyDirector,
+      'already_deputy' => StayErrorCode.alreadyDeputy,
       'invalid_token' => StayErrorCode.sessionExpired,
       _ => StayErrorCode.unknown,
     });

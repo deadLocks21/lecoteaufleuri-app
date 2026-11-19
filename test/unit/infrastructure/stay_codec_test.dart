@@ -62,7 +62,7 @@ void main() {
     });
   });
 
-  test('lit un séjour avec sa direction', () {
+  test('lit un séjour avec son équipe', () {
     final detail = StayCodec.detailFromJson({
       ...json,
       'directors': [
@@ -72,28 +72,37 @@ void main() {
       'deputies': [
         {'id': 'd2', 'first_name': 'Sacha', 'last_name': 'Bernard'},
       ],
+      'animators': [
+        {'id': 'a1', 'first_name': 'Charlie', 'last_name': 'Moreau'},
+      ],
       'can_manage_directors': false,
       'can_manage_deputies': true,
+      'can_manage_animators': true,
     });
 
     expect(detail.stay.name, 'Été 2027');
     expect(detail.directors.map((d) => d.lastName), ['Durand', 'Petit']);
     expect(detail.deputies.single.firstName, 'Sacha');
+    expect(detail.animators.single.lastName, 'Moreau');
     expect(detail.canManageDirectors, isFalse);
     expect(detail.canManageDeputies, isTrue);
+    expect(detail.canManageAnimators, isTrue);
   });
 
-  test('un séjour sans directeur a une liste vide', () {
+  test('un séjour sans équipe a des listes vides', () {
     final detail = StayCodec.detailFromJson({
       ...json,
       'directors': <Object?>[],
       'deputies': <Object?>[],
+      'animators': <Object?>[],
       'can_manage_directors': true,
       'can_manage_deputies': true,
+      'can_manage_animators': true,
     });
 
     expect(detail.directors, isEmpty);
     expect(detail.deputies, isEmpty);
+    expect(detail.animators, isEmpty);
   });
 
   test('refuse une direction qui n\'a pas la forme attendue', () {
@@ -101,13 +110,17 @@ void main() {
       ...json,
       'directors': <Object?>[],
       'deputies': <Object?>[],
+      'animators': <Object?>[],
       'can_manage_directors': true,
       'can_manage_deputies': true,
+      'can_manage_animators': true,
     };
     for (final malformed in <Object?>[
       json,
       {...base, 'deputies': null},
+      {...base, 'animators': null},
       {...base, 'can_manage_directors': 'oui'},
+      {...base, 'can_manage_animators': null},
       {...base, 'directors': null},
       {
         ...base,
@@ -134,7 +147,11 @@ void main() {
       StaffRole.deputy,
     );
     expect(
-      () => StayCodec.myStayFromJson({...json, 'role': 'animator'}),
+      StayCodec.myStayFromJson({...json, 'role': 'animator'}).role,
+      StaffRole.animator,
+    );
+    expect(
+      () => StayCodec.myStayFromJson({...json, 'role': 'guardian'}),
       throwsFormatException,
     );
   });

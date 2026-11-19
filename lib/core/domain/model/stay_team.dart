@@ -9,9 +9,12 @@ enum StaffRole {
 
   /// Seconde le directeur, avec ses droits sauf nommer ou retirer un adjoint.
   deputy,
+
+  /// Encadre les participants ; n'a pas la main sur l'équipe.
+  animator,
 }
 
-/// Un membre de la direction d'un séjour : son nom, pas son numéro.
+/// Un membre de l'équipe d'un séjour : son nom, pas son numéro.
 class TeamMember {
   final String id;
   final String firstName;
@@ -35,26 +38,31 @@ class TeamMember {
   int get hashCode => Object.hash(id, firstName, lastName);
 }
 
-/// Un séjour et sa direction, avec ce que le compte connecté peut y changer.
+/// Un séjour et son équipe, avec ce que le compte connecté peut y changer.
 ///
-/// [canManageDirectors] et [canManageDeputies] viennent de l'API, qui revérifie
-/// à chaque action : l'app s'en sert pour adapter l'écran, jamais pour
-/// protéger quoi que ce soit.
+/// [canManageDirectors], [canManageDeputies] et [canManageAnimators] viennent
+/// de l'API, qui revérifie à chaque action : l'app s'en sert pour adapter
+/// l'écran, jamais pour protéger quoi que ce soit.
 class StayDetail {
   final Stay stay;
   final List<TeamMember> directors;
   final List<TeamMember> deputies;
+  final List<TeamMember> animators;
   final bool canManageDirectors;
   final bool canManageDeputies;
+  final bool canManageAnimators;
 
   StayDetail({
     required this.stay,
     required List<TeamMember> directors,
     required List<TeamMember> deputies,
+    required List<TeamMember> animators,
     required this.canManageDirectors,
     required this.canManageDeputies,
+    required this.canManageAnimators,
   }) : directors = List.unmodifiable(directors),
-       deputies = List.unmodifiable(deputies);
+       deputies = List.unmodifiable(deputies),
+       animators = List.unmodifiable(animators);
 }
 
 /// Le prénom et le nom du compte à créer pour un numéro qui n'en a pas, au

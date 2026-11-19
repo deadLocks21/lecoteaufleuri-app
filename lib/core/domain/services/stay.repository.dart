@@ -13,7 +13,7 @@ abstract interface class StayRepository {
   /// Admins seulement.
   Future<Stay> create(StayDraft draft);
 
-  /// Le séjour et sa direction : admin, directeur et adjoints du séjour.
+  /// Le séjour et son équipe : admin, directeurs et adjoints du séjour.
   Future<StayDetail> get(String stayId);
 
   /// Le compte de [phone] rejoint les directeurs. S'il n'existe pas,
@@ -37,6 +37,20 @@ abstract interface class StayRepository {
 
   /// Admin et directeur du séjour.
   Future<StayDetail> removeDeputy(String stayId, String accountId);
+
+  /// Le compte de [phone] devient animateur ; comme [nameDirector] pour un
+  /// numéro sans compte. Un directeur ou un adjoint du séjour n'est rétrogradé
+  /// qu'avec [demote] : sans lui, `alreadyDirector` ou `alreadyDeputy`. Admin,
+  /// directeurs et adjoints du séjour.
+  Future<StayDetail> addAnimator(
+    String stayId,
+    PhoneNumber phone, {
+    NewStaffAccount? newAccount,
+    bool demote = false,
+  });
+
+  /// Admin, directeurs et adjoints du séjour.
+  Future<StayDetail> removeAnimator(String stayId, String accountId);
 
   /// Les séjours où le compte connecté est directeur ou adjoint.
   Future<List<MyStay>> mine();

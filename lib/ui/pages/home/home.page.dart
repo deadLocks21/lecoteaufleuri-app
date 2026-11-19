@@ -82,6 +82,7 @@ class HomePage extends ConsumerWidget {
                       icon: switch (stay.role) {
                         StaffRole.director => Icons.workspace_premium_outlined,
                         StaffRole.deputy => Icons.supervisor_account_outlined,
+                        StaffRole.animator => Icons.emoji_people_outlined,
                       },
                       title: stay.stay.name,
                       subtitle:
