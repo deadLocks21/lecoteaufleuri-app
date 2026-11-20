@@ -684,16 +684,24 @@ class _StaySwitcher extends ConsumerWidget {
             ? () => controller.isOpen ? controller.close() : controller.open()
             : null;
         // Une carte qui s'étire avec la barre : l'avatar à gauche, centré
-        // sur la largeur repliée, et les détails dévoilés à droite.
+        // sur la largeur repliée, et les détails dévoilés à droite. Repliée,
+        // la carte s'efface : l'avatar reste seul, comme les autres icônes.
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: _navMargin),
           child: Tooltip(
             message: extended ? '' : name,
             child: Material(
-              color: theme.colorScheme.surfaceContainerLow,
+              color: extended
+                  ? theme.colorScheme.surfaceContainerLow
+                  : theme.colorScheme.surfaceContainerLow.withValues(alpha: 0),
+              animationDuration: _navAnimation,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: theme.colorScheme.outlineVariant),
+                side: BorderSide(
+                  color: extended
+                      ? theme.colorScheme.outlineVariant
+                      : theme.colorScheme.outlineVariant.withValues(alpha: 0),
+                ),
               ),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
