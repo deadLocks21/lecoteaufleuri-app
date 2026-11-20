@@ -11,6 +11,8 @@ import 'package:lecoteaufleuri/infrastructure/providers/session.repository_provi
 import 'package:lecoteaufleuri/infrastructure/providers/stay.repository_provider.dart';
 import 'package:lecoteaufleuri/infrastructure/session/in_memory.session.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/in_memory.stay.repository.dart';
+import 'package:lecoteaufleuri/infrastructure/providers/last_stay.repository_provider.dart';
+import 'package:lecoteaufleuri/infrastructure/stays/in_memory.last_stay.repository.dart';
 import 'package:lecoteaufleuri/main.dart';
 
 import '../helpers/fake_auth_repository.dart';
@@ -42,6 +44,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          lastStayRepositoryProvider.overrideWithValue(
+            InMemoryLastStayRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository(user)),
           sessionRepositoryProvider.overrideWithValue(
             InMemorySessionRepository(
@@ -65,11 +70,23 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> openStayAsAdmin(WidgetTester tester, String stayId) async {
+  /// Ouvre le module Équipe du séjour où l'app s'est ouverte.
+  Future<void> openTeam(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('teamModule')));
+    await tester.pumpAndSettle();
+  }
+
+  /// Ouvre un séjour depuis l'administration, puis son équipe si [team].
+  Future<void> openStayAsAdmin(
+    WidgetTester tester,
+    String stayId, {
+    bool team = true,
+  }) async {
     await tester.tap(find.byKey(const Key('staysSpace')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(Key('stay-$stayId')));
     await tester.pumpAndSettle();
+    if (team) await openTeam(tester);
   }
 
   Future<void> nameByPhone(WidgetTester tester, String phone) async {
@@ -80,9 +97,11 @@ void main() {
 
   testWidgets('l\'admin voit la direction d\'un séjour ACM', (tester) async {
     await launchAs(tester, demo);
-    await openStayAsAdmin(tester, summer);
+    await openStayAsAdmin(tester, summer, team: false);
 
     expect(find.text('Du 10 au 24 juillet 2027'), findsOneWidget);
+    expect(find.text('ACM · Administration'), findsOneWidget);
+    await openTeam(tester);
     expect(find.text('Dominique Durand'), findsOneWidget);
     expect(find.byKey(const Key('noDeputies')), findsOneWidget);
     expect(find.byKey(const Key('addDirectorButton')), findsOneWidget);
@@ -93,11 +112,11 @@ void main() {
 
   testWidgets('un séjour hors ACM n\'a pas de direction', (tester) async {
     await launchAs(tester, demo);
-    await openStayAsAdmin(tester, weekend);
+    await openStayAsAdmin(tester, weekend, team: false);
 
     expect(find.byKey(const Key('noDirection')), findsOneWidget);
-    expect(find.byKey(const Key('addDirectorButton')), findsNothing);
-    expect(find.byKey(const Key('addAnimatorButton')), findsNothing);
+    expect(find.byKey(const Key('newsModule')), findsOneWidget);
+    expect(find.byKey(const Key('teamModule')), findsNothing);
   });
 
   testWidgets(
@@ -185,16 +204,18 @@ void main() {
   );
 
   testWidgets(
-    'le directeur retrouve son séjour à l\'accueil et y nomme un adjoint par '
+    'l\'app s\'ouvre sur le séjour du directeur, qui y nomme un adjoint par '
     'son numéro, sans voir les comptes',
     (tester) async {
       await launchAs(tester, dominique);
 
+      // Son seul séjour s'ouvre de lui-même.
       expect(find.byKey(const Key('staysSpace')), findsNothing);
-      expect(find.text('Directeur · Du 10 au 24 juillet 2027'), findsOneWidget);
+      expect(find.byKey(const Key('adminSpace')), findsNothing);
+      expect(find.text('Du 10 au 24 juillet 2027'), findsOneWidget);
+      expect(find.text('ACM · Directeur'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('myStay-$summer')));
-      await tester.pumpAndSettle();
+      await openTeam(tester);
 
       expect(find.byKey(const Key('addDirectorButton')), findsNothing);
       await tester.tap(find.byKey(const Key('addDeputyButton')));
@@ -212,8 +233,7 @@ void main() {
     'le directeur crée le compte d\'un adjoint qui n\'en a pas encore',
     (tester) async {
       await launchAs(tester, dominique);
-      await tester.tap(find.byKey(const Key('myStay-$summer')));
-      await tester.pumpAndSettle();
+      await openTeam(tester);
       await tester.tap(find.byKey(const Key('addDeputyButton')));
       await tester.pumpAndSettle();
 
@@ -255,9 +275,8 @@ void main() {
       },
     );
 
-    expect(find.text('Adjoint · Du 10 au 24 juillet 2027'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('myStay-$summer')));
-    await tester.pumpAndSettle();
+    expect(find.text('ACM · Adjoint'), findsOneWidget);
+    await openTeam(tester);
 
     expect(find.text('Dominique Durand'), findsOneWidget);
     expect(find.byKey(const Key('addDirectorButton')), findsNothing);
@@ -277,8 +296,7 @@ void main() {
         summer: {dominiqueId: StaffRole.director, sachaId: StaffRole.deputy},
       },
     );
-    await tester.tap(find.byKey(const Key('myStay-$summer')));
-    await tester.pumpAndSettle();
+    await openTeam(tester);
 
     await tester.tap(find.byKey(const Key('addAnimatorButton')));
     await tester.pumpAndSettle();
@@ -308,8 +326,7 @@ void main() {
           summer: {dominiqueId: StaffRole.director, sachaId: StaffRole.deputy},
         },
       );
-      await tester.tap(find.byKey(const Key('myStay-$summer')));
-      await tester.pumpAndSettle();
+      await openTeam(tester);
       await tester.tap(find.byKey(const Key('addAnimatorButton')));
       await tester.pumpAndSettle();
 
@@ -342,8 +359,7 @@ void main() {
           summer: {dominiqueId: StaffRole.director, sachaId: StaffRole.deputy},
         },
       );
-      await tester.tap(find.byKey(const Key('myStay-$summer')));
-      await tester.pumpAndSettle();
+      await openTeam(tester);
       await tester.tap(find.byKey(const Key('addAnimatorButton')));
       await tester.pumpAndSettle();
 
@@ -357,21 +373,21 @@ void main() {
     },
   );
 
-  testWidgets('l\'admin qui se nomme adjoint retrouve le séjour à l\'accueil', (
-    tester,
-  ) async {
-    await launchAs(tester, demo);
-    expect(find.byKey(const Key('myStay-$summer')), findsNothing);
+  testWidgets(
+    'l\'admin qui se nomme adjoint retrouve le séjour parmi les siens',
+    (tester) async {
+      await launchAs(tester, demo);
+      expect(find.byKey(const Key('myStay-$summer')), findsNothing);
 
-    await openStayAsAdmin(tester, summer);
-    await tester.tap(find.byKey(const Key('addDeputyButton')));
-    await tester.pumpAndSettle();
-    await nameByPhone(tester, '06 12 34 56 78');
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
+      await openStayAsAdmin(tester, summer);
+      await tester.tap(find.byKey(const Key('addDeputyButton')));
+      await tester.pumpAndSettle();
+      await nameByPhone(tester, '06 12 34 56 78');
+      await tester.tap(find.byKey(const Key('staySwitcher')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Adjoint · Du 10 au 24 juillet 2027'), findsOneWidget);
-  });
+      expect(find.byKey(const Key('myStay-$summer')), findsOneWidget);
+      expect(find.text('Adjoint · Du 10 au 24 juillet 2027'), findsOneWidget);
+    },
+  );
 }

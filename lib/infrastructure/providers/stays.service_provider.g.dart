@@ -54,4 +54,4 @@ final class StaysServiceProvider
   }
 }
 
-String _$staysServiceHash() => r'98804885eb3414caf945bc533df8527276302032';
+String _$staysServiceHash() => r'c585d83f4e199757bff0d584f39bad12484a7dad';

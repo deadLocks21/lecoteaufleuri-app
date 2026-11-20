@@ -14,7 +14,7 @@ Application **Le Coteau Fleuri** — Flutter (Android · iOS · macOS · Windows
   (`core/domain`, `core/application`, `infrastructure`, `ui`), Riverpod 3 + codegen, imports
   absolus. Détails : [ARCHITECTURE.md](ARCHITECTURE.md).
 
-> Statut : connexion par téléphone + OTP en place (accueil minimal une fois connecté).
+> Statut : connexion par téléphone + OTP, séjours (équipe, nouvelles) et administration en place.
 
 ## Développer
 
@@ -33,9 +33,11 @@ L'app s'ouvre sur la connexion par numéro de mobile + code reçu par SMS.
 - **Sans backend** (par défaut) : compte de démo `06 12 34 56 78`, code `000000`.
   Il est admin, pour essayer l'administration des comptes et des séjours
   (comptes et séjours de démo en mémoire) : l'été 2027 est dirigé par
-  Dominique Durand ; se nommer adjoint (06 12 34 56 78) le fait apparaître
-  dans « Mes séjours ». Ses nouvelles (fiche du séjour) ont déjà quelques
-  photos et journées : une publiée, une programmée, un brouillon.
+  Dominique Durand ; le compte de démo n'y a pas de rôle et s'ouvre donc sur
+  l'administration (Séjours → l'été 2027). S'y nommer adjoint
+  (06 12 34 56 78) le fait apparaître parmi ses séjours. Ses nouvelles (module
+  Nouvelles) ont déjà quelques photos et journées : une publiée, une
+  programmée, un brouillon.
 - **Contre l'API** (`lecoteaufleuri/api`) : passer son origine à la compilation.
 
   ```sh

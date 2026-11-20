@@ -16,7 +16,11 @@ import 'package:lecoteaufleuri/ui/pages/news/widgets/photo_image.widget.dart';
 class NewsDaysPage extends ConsumerWidget {
   final StayDto stay;
 
-  const NewsDaysPage({super.key, required this.stay});
+  /// Affichée dans un onglet du module Nouvelles, sous sa barre : sans barre
+  /// de titre à elle.
+  final bool embedded;
+
+  const NewsDaysPage({super.key, required this.stay, this.embedded = false});
 
   Future<void> _create(
     BuildContext context,
@@ -61,7 +65,7 @@ class NewsDaysPage extends ConsumerWidget {
     final list = days.value;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Journées')),
+      appBar: embedded ? null : AppBar(title: const Text('Journées')),
       floatingActionButton: list == null
           ? null
           : FloatingActionButton.extended(

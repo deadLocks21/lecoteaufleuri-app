@@ -63,3 +63,12 @@ class MyStayDto {
   factory MyStayDto.fromDomain(MyStay mine) =>
       MyStayDto(stay: StayDto.fromDomain(mine.stay), role: mine.role);
 }
+
+/// Un séjour tel que l'app l'ouvre pour le compte connecté : avec son rôle
+/// dans l'équipe, ou [role] `null` pour un admin qui n'en fait pas partie.
+class StaySpaceDto {
+  final StayDto stay;
+  final StaffRole? role;
+
+  const StaySpaceDto({required this.stay, this.role});
+}

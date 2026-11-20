@@ -18,7 +18,16 @@ class StayPhotosPage extends ConsumerStatefulWidget {
   final String stayId;
   final String title;
 
-  const StayPhotosPage({super.key, required this.stayId, required this.title});
+  /// Affichée dans un onglet du module Nouvelles, sous sa barre : sans barre
+  /// de titre à elle.
+  final bool embedded;
+
+  const StayPhotosPage({
+    super.key,
+    required this.stayId,
+    required this.title,
+    this.embedded = false,
+  });
 
   @override
   ConsumerState<StayPhotosPage> createState() => _StayPhotosPageState();
@@ -85,7 +94,7 @@ class _StayPhotosPageState extends ConsumerState<StayPhotosPage> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: widget.embedded ? null : AppBar(title: Text(widget.title)),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('addPhotosButton'),
         onPressed: _uploading ? null : _upload,

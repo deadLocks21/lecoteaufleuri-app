@@ -1,33 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lecoteaufleuri/core/application/dtos/stay.dto.dart';
 import 'package:lecoteaufleuri/core/application/dtos/stay_detail.dto.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/stay_detail.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_error_message.dart';
-import 'package:lecoteaufleuri/ui/pages/news/days.page.dart';
-import 'package:lecoteaufleuri/ui/pages/news/news_feed.page.dart';
-import 'package:lecoteaufleuri/ui/pages/news/photos.page.dart';
 import 'package:lecoteaufleuri/ui/pages/stays/staff_picker.page.dart';
-import 'package:lecoteaufleuri/ui/widgets/space_card.widget.dart';
+import 'package:lecoteaufleuri/ui/shell/app_shell.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
-/// Un séjour, ses nouvelles et son équipe, pour l'admin, ses directeurs et ses
-/// adjoints.
+/// Le module Équipe d'un séjour : ses directeurs, ses adjoints et ses
+/// animateurs, pour l'admin, ses directeurs et ses adjoints.
 ///
 /// Les boutons suivent ce que l'API dit permettre au compte connecté :
 /// l'admin nomme ou retire les directeurs, l'admin et les directeurs nomment
 /// ou retirent les adjoints, et tous trois ajoutent ou retirent les
 /// animateurs. L'API revérifie chaque action.
-class StayPage extends ConsumerWidget {
+class StayTeamPage extends ConsumerWidget {
   final String stayId;
 
-  /// Le nom déjà connu (liste d'où l'on vient), affiché pendant le chargement.
-  final String? name;
-
-  const StayPage({super.key, required this.stayId, this.name});
+  const StayTeamPage({super.key, required this.stayId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,7 +28,10 @@ class StayPage extends ConsumerWidget {
     final value = detail.value;
 
     return Scaffold(
-      appBar: AppBar(title: Text(value?.stay.name ?? name ?? 'Séjour')),
+      appBar: AppBar(
+        automaticallyImplyLeading: shellShowsBack(context),
+        title: const Text('Équipe'),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
@@ -213,42 +209,6 @@ class _StayView extends ConsumerWidget {
     ];
   }
 
-  /// Les nouvelles du séjour, que la direction compose : la pioche des photos
-  /// de l'équipe, les journées, et ce qu'en voient les familles.
-  List<Widget> _news(BuildContext context, StayDto stay) {
-    void open(Widget page) => Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => page));
-    return [
-      Text(
-        'Nouvelles du séjour',
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
-      const SizedBox(height: 8),
-      SpaceCard(
-        key: const Key('stayPhotosSpace'),
-        icon: Icons.photo_library_outlined,
-        title: 'Photos',
-        subtitle: 'Celles de toute l\'équipe : les trier, en déposer',
-        onTap: () => open(StayPhotosPage(stayId: stay.id, title: 'Photos')),
-      ),
-      SpaceCard(
-        key: const Key('stayDaysSpace'),
-        icon: Icons.edit_calendar_outlined,
-        title: 'Journées',
-        subtitle: 'Rédiger, illustrer, publier ou programmer',
-        onTap: () => open(NewsDaysPage(stay: stay)),
-      ),
-      SpaceCard(
-        key: const Key('stayNewsSpace'),
-        icon: Icons.newspaper_outlined,
-        title: 'Nouvelles publiées',
-        subtitle: 'Ce que voient les familles',
-        onTap: () => open(NewsFeedPage(stayId: stay.id, asFamilies: true)),
-      ),
-    ];
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -260,19 +220,6 @@ class _StayView extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text(
-          displayStayDates(stay.startsOn, stay.endsOn),
-          key: const Key('stayDates'),
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${stayKindLabel(stay.kind)} · ${stayKindDescription(stay.kind)}',
-          style: muted,
-        ),
-        const SizedBox(height: 24),
-        ..._news(context, stay),
-        const SizedBox(height: 24),
         if (stay.kind != StayKind.acm)
           Text(
             'Séjour hors ACM : il n\'a ni direction ni animateurs.',

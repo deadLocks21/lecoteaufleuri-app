@@ -6,7 +6,7 @@ Architecture **hexagonale, layer-first**, identique à `songbook-app` / `kidflix
 
 ```
 lib/
-├── main.dart                 # Point d'entrée : ProviderScope + MaterialApp (racine : AuthGate)
+├── main.dart                 # Point d'entrée : ProviderScope + MaterialApp.router (routeur : appRouter)
 ├── core/
 │   ├── domain/               # Domain (Dart pur)
 │   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft, Stay, StayDraft,
@@ -14,33 +14,39 @@ lib/
 │   │   │                     # News (StayPhoto, PhotoSorting, NewsDay, DayStatus, PublishedDay, PickedPhoto)
 │   │   ├── exceptions/       # AuthException, AccountException, StayException, NewsException (+ codes)
 │   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository, StayRepository,
-│   │                         # NewsRepository, PhotoPicker
+│   │                         # LastStayRepository, NewsRepository, PhotoPicker
 │   └── application/          # Application (Dart pur)
 │       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto, StayDetailDto,
-│       │                     # StayPhotoDto, NewsDayDto, PublishedDayDto
+│       │                     # MyStayDto, StaySpaceDto, StayPhotoDto, NewsDayDto, PublishedDayDto
 │       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, RefreshSession, Logout ;
 │       │                     # accounts.usecases (ListAccounts, SaveAccount, DeleteAccount…) ;
 │       │                     # stays.usecases (ListStays, CreateStay) ;
 │       │                     # stay_team.usecases (GetStay, NameStaff, RemoveStaff, ListMyStays) ;
+│       │                     # last_stay.usecases (PickDefaultStay, RememberStay) ;
 │       │                     # news.usecases (photos, dépôt, tri, jours, publication, lecture)
 │       ├── services/         # AuthApplicationService, AccountsApplicationService, StaysApplicationService,
 │       │                     # NewsApplicationService
-│       └── session_state.dart  # Machine d'états de la session
+│       ├── session_state.dart  # Machine d'états de la session
+│       └── stay_periods.dart   # Séjours en cours / à venir / passés, séjour où ouvrir l'app
 ├── infrastructure/
 │   ├── auth/                 # dio.auth.repository, in_memory.auth.repository, user.codec
 │   ├── accounts/             # dio.account.repository, in_memory.account.repository
-│   ├── stays/                # dio.stay.repository, in_memory.stay.repository, stay.codec
+│   ├── stays/                # dio.stay.repository, in_memory.stay.repository, stay.codec,
+│   │                         # shared_preferences/in_memory.last_stay.repository
 │   ├── news/                 # dio.news.repository, in_memory.news.repository, news.codec,
 │   │                         # image_picker.photo_picker, demo_photos (PNG de démo dessinés à la volée)
 │   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
 │   ├── http/                 # AuthInterceptor (Bearer, 401, 403), chemins et codes d'erreur de l'API
 │   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
 │                             # dont SessionController, AccountsController, StaysController,
-│                             # StayDetailController, myStays, StayPhotosController,
+│                             # StayDetailController, myStays, staySpace, StayPhotosController,
 │                             # NewsDaysController, stayNews et photoImage
 └── ui/
-    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/, admin/, stays/, news/
-    ├── widgets/              # *.widget.dart partagés : AuthGate, SpaceCard ; phone_display, stay_display
+    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, start/, admin/, stays/, news/
+    ├── shell/                # AppShell : tiroir, rail ou barre latérale autour des pages
+    ├── router/               # AppRoutes (adresses) et SpaceLocation (l'espace d'une adresse)
+    ├── providers/            # appRouter (go_router, redirections d'après la session)
+    ├── widgets/              # *.widget.dart partagés : SpaceCard ; phone_display, stay_display
     └── theme/                # AppThemeData : palette du logo (vert, bleu, jaune, anthracite)
 test/
 ├── helpers/                  # Doublures et données partagées (FakeHttpAdapter, fixtures)
@@ -63,8 +69,10 @@ Même parcours que songbook, motorz et kidflix, contre l'API (`API.md` du dépô
    `SessionController.expire()` efface la session et renvoie un SMS au même numéro
    (un seul, même si plusieurs requêtes échouent ensemble).
 
-`AuthGate` choisit l'écran d'après `SessionState` (`SessionRestoring`, `Anonymous`,
-`OtpRequested`, `Authenticated`). Les écrans ne voient que des DTOs : le JWT ne quitte
+Le routeur (`appRouter`) choisit l'écran d'après `SessionState` (`SessionRestoring`
+→ `/chargement`, `Anonymous` → `/connexion`, `OtpRequested` → `/code`,
+`Authenticated` → l'app). L'adresse demandée au lancement (un lien vers un séjour,
+sur le web) est reprise une fois la session relue. Les écrans ne voient que des DTOs : le JWT ne quitte
 jamais l'infrastructure.
 
 ## Droits et espaces
@@ -74,18 +82,37 @@ Qui voit quoi est décidé dans `ACCES.md` du dépôt `lecoteaufleuri/dev`
 décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
 
 - **Les droits se relisent** (`RefreshSessionUseCase`, `GET /api/me`) au
-  démarrage, à chaque retour au premier plan (`AuthGate`) et après un
+  démarrage, à chaque retour au premier plan (`LeCoteauFleuriApp`) et après un
   `403 forbidden` (`AuthInterceptor` → `SessionController.refresh()`). Sans
   réseau, la session garde ce qu'elle savait.
-- **L'accueil montre un espace par lien** du compte avec l'association, pas un
-  écran par rôle : « Mes séjours » (ceux qu'il dirige ou seconde,
-  `GET /api/me/stays`) et, pour les admins, « Administration » (séjours et
-  comptes). Les enfants viendront avec leurs liens. Tirer l'accueil vers le
-  bas relit les droits et les séjours.
-- **Rien ne survit à une session fermée ou à des droits retirés** : `AuthGate`
-  referme alors tout écran ouvert par-dessus l'accueil, et les données de ces
-  écrans vivent dans des providers sans `keepAlive` (ex. `AccountsController`),
-  libérés avec eux.
+- **On est toujours dans un espace** (`ui/shell/`, `ui/router/`) : un séjour
+  du compte ou l'administration, pas un écran par rôle. L'app s'ouvre (`/`,
+  `StartPage`) sur le dernier séjour ouvert sur l'appareil s'il n'est pas
+  terminé, sinon celui en cours, le prochain, puis le dernier passé
+  (`defaultStay`) ; un admin sans séjour arrive dans l'administration. « Mes
+  séjours » (`GET /api/me/stays`) sont ceux où le compte a un rôle ; un admin
+  ouvre les autres depuis l'administration. Les enfants viendront avec leurs
+  liens.
+- **Un séjour se compose de modules** (`StayModule` : Nouvelles, Équipe),
+  chacun montré à qui y a droit, et ses pages sont des onglets du module.
+  Adresses : `/sejours/:id` (vue d'ensemble, une tuile par module),
+  `/sejours/:id/nouvelles`, `/sejours/:id/equipe`, `/admin`,
+  `/admin/sejours`, `/admin/comptes`. Un nouvel écran de séjour devient un
+  module ou un onglet, pas une carte de plus.
+- **Le cadre suit la largeur** (`AppShell`) : sous 600 points, un tiroir ☰
+  (les séjours par période, l'administration, la déconnexion) et les tuiles
+  de la vue d'ensemble ; jusqu'à 1000, un rail d'icônes ; au-delà, la barre
+  latérale dépliée, avec le sélecteur de séjour en tête. Le rail se déplie et
+  la barre se replie. Les écrans ouverts depuis un module (éditeur d'un jour,
+  visionneuse…) s'empilent dans la zone du contenu, le cadre restant en
+  place ; chaque page a ses messages (`ScaffoldMessenger` du cadre).
+- **Tirer la vue d'ensemble vers le bas** relit les droits du compte, ses
+  séjours et le séjour ouvert.
+- **Rien ne survit à une session fermée ou à des droits retirés** : la
+  déconnexion renvoie à `/connexion`, hors du cadre, qui se ferme avec tout ce
+  qu'il montrait ; perdre le statut d'admin ramène à `/`, quel que soit
+  l'écran ouvert. Les données de ces écrans vivent dans des providers sans
+  `keepAlive` (ex. `AccountsController`), libérés avec eux.
 - **Administration des comptes** (`ui/pages/admin/`) : liste avec recherche,
   création, correction, statut d'admin, coupure des sessions, suppression
   (réversible côté serveur). Le dernier admin garde son statut ; on ne supprime
@@ -95,7 +122,7 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   choisies au calendrier). Les jours voyagent en `AAAA-MM-JJ` et vivent dans
   l'app à minuit UTC (`calendarDay`) : seuls l'année, le mois et le jour
   comptent.
-- **Équipe d'un séjour** (`ui/pages/stays/`) : la fiche d'un séjour montre
+- **Équipe d'un séjour** (`ui/pages/stays/`, module Équipe) : elle montre
   ses directeurs (un ou plusieurs, égaux), ses adjoints et ses animateurs ; les
   boutons suivent `can_manage_directors`, `can_manage_deputies` et
   `can_manage_animators` rendus par l'API (admin : tout ; directeur : les
@@ -108,12 +135,11 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   puis renvoie la requête avec `demote` — seulement si l'appelant peut le
   retirer de son rôle ; sinon l'erreur s'affiche sous le numéro. En mémoire,
   `InMemoryStayRepository` rejoue ces règles d'après le compte connecté.
-- **Nouvelles du séjour** (`ui/pages/news/`, `ACCES.md` « Nouvelles du
-  séjour ») : la fiche d'un séjour ouvre à la direction les **photos** de
-  toute l'équipe (la pioche : retenues, à trier, écartées), les **journées**
-  et les **nouvelles publiées** (ce que voient les familles). Un animateur
-  retrouve son séjour dans « Mes séjours » et y ouvre **ses** photos et les
-  nouvelles, pas la fiche. On dépose plusieurs photos à la fois
+- **Nouvelles du séjour** (`ui/pages/news/`, module Nouvelles, `ACCES.md`
+  « Nouvelles du séjour ») : la direction y a trois onglets, les **nouvelles
+  publiées** (ce que voient les familles), les **journées** et les **photos**
+  de toute l'équipe (la pioche : retenues, à trier, écartées). Un animateur y
+  a les nouvelles publiées et **ses** photos, et pas le module Équipe. On dépose plusieurs photos à la fois
   (`PhotoPicker`, réduites à 2048 points par `image_picker`), envoyées une à
   une avec leur progression ; on les trie une à une ou en série (« Trier les
   n photos qui attendent »). Un jour se crée à une date libre du séjour, se

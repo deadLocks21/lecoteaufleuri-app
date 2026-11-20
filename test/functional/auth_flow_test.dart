@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/session.repository_provider.dart';
 import 'package:lecoteaufleuri/infrastructure/session/in_memory.session.repository.dart';
+import 'package:lecoteaufleuri/infrastructure/providers/last_stay.repository_provider.dart';
+import 'package:lecoteaufleuri/infrastructure/stays/in_memory.last_stay.repository.dart';
 import 'package:lecoteaufleuri/main.dart';
 import 'package:lecoteaufleuri/ui/pages/auth/otp_verify.page.dart';
 
@@ -18,7 +20,12 @@ void main() {
     final repository = sessions ?? InMemorySessionRepository();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sessionRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          lastStayRepositoryProvider.overrideWithValue(
+            InMemoryLastStayRepository(),
+          ),
+          sessionRepositoryProvider.overrideWithValue(repository),
+        ],
         child: const LeCoteauFleuriApp(),
       ),
     );
@@ -59,7 +66,10 @@ void main() {
     expect(find.text('Code incorrect.'), findsOneWidget);
 
     await submitCode(tester, '000000');
-    expect(find.text('Bonjour Camille !'), findsOneWidget);
+    // Le compte de démo est admin et n'a aucun séjour : l'app s'ouvre sur
+    // l'administration, une fois ses séjours lus.
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('staysSpace')), findsOneWidget);
     expect(await sessions.read(), isNotNull);
 
     await tester.tap(find.byKey(const Key('logoutButton')));
@@ -88,7 +98,7 @@ void main() {
     },
   );
 
-  testWidgets('une session enregistrée ouvre directement l\'accueil', (
+  testWidgets('une session enregistrée ouvre directement l\'app', (
     tester,
   ) async {
     await launch(
@@ -97,8 +107,9 @@ void main() {
         sessionExpiringAt(DateTime.now().add(const Duration(days: 1))),
       ),
     );
+    await tester.pumpAndSettle();
 
-    expect(find.text('Bonjour Camille !'), findsOneWidget);
+    expect(find.byKey(const Key('staysSpace')), findsOneWidget);
   });
 
   testWidgets('on peut corriger son numéro depuis l\'écran du code', (

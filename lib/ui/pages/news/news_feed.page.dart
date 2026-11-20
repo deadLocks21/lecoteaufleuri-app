@@ -16,10 +16,15 @@ class NewsFeedPage extends ConsumerWidget {
   /// Dit à la direction qu'elle voit l'écran des familles.
   final bool asFamilies;
 
+  /// Affichée dans un onglet du module Nouvelles, sous sa barre : sans barre
+  /// de titre à elle.
+  final bool embedded;
+
   const NewsFeedPage({
     super.key,
     required this.stayId,
     this.asFamilies = false,
+    this.embedded = false,
   });
 
   @override
@@ -31,7 +36,9 @@ class NewsFeedPage extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nouvelles du séjour')),
+      appBar: embedded
+          ? null
+          : AppBar(title: const Text('Nouvelles du séjour')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),

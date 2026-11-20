@@ -7,6 +7,8 @@ import 'package:lecoteaufleuri/infrastructure/auth/in_memory.auth.repository.dar
 import 'package:lecoteaufleuri/infrastructure/providers/auth.repository_provider.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/session.repository_provider.dart';
 import 'package:lecoteaufleuri/infrastructure/session/in_memory.session.repository.dart';
+import 'package:lecoteaufleuri/infrastructure/providers/last_stay.repository_provider.dart';
+import 'package:lecoteaufleuri/infrastructure/stays/in_memory.last_stay.repository.dart';
 import 'package:lecoteaufleuri/main.dart';
 
 import '../helpers/fake_auth_repository.dart';
@@ -24,6 +26,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          lastStayRepositoryProvider.overrideWithValue(
+            InMemoryLastStayRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(auth),
           sessionRepositoryProvider.overrideWithValue(
             InMemorySessionRepository(

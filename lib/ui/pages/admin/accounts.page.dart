@@ -5,6 +5,7 @@ import 'package:lecoteaufleuri/core/domain/exceptions/account.exception.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/accounts.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/account_edit.page.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/account_error_message.dart';
+import 'package:lecoteaufleuri/ui/shell/app_shell.dart';
 import 'package:lecoteaufleuri/ui/widgets/phone_display.dart';
 
 /// Les comptes de l'association, pour un admin : recherche, création, et
@@ -54,7 +55,10 @@ class _AccountsPageState extends ConsumerState<AccountsPage> {
     final value = accounts.value;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Comptes')),
+      appBar: AppBar(
+        automaticallyImplyLeading: shellShowsBack(context),
+        title: const Text('Comptes'),
+      ),
       floatingActionButton: value == null
           ? null
           : FloatingActionButton.extended(

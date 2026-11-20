@@ -16,6 +16,8 @@ import 'package:lecoteaufleuri/infrastructure/providers/session.repository_provi
 import 'package:lecoteaufleuri/infrastructure/providers/stay.repository_provider.dart';
 import 'package:lecoteaufleuri/infrastructure/session/in_memory.session.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/in_memory.stay.repository.dart';
+import 'package:lecoteaufleuri/infrastructure/providers/last_stay.repository_provider.dart';
+import 'package:lecoteaufleuri/infrastructure/stays/in_memory.last_stay.repository.dart';
 import 'package:lecoteaufleuri/main.dart';
 
 import '../helpers/fake_auth_repository.dart';
@@ -67,6 +69,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          lastStayRepositoryProvider.overrideWithValue(
+            InMemoryLastStayRepository(),
+          ),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository(user)),
           sessionRepositoryProvider.overrideWithValue(
             InMemorySessionRepository(
@@ -97,9 +102,11 @@ void main() {
     (tester) async {
       await launchAs(tester, sacha);
 
-      await tapKey(tester, 'myStay-$summer');
-      expect(find.byKey(const Key('stayDaysSpace')), findsNothing);
-      await tapKey(tester, 'myPhotosSpace');
+      // Son séjour s'ouvre de lui-même ; les nouvelles n'y ont pas de
+      // journées pour lui.
+      await tapKey(tester, 'newsModule');
+      expect(find.byKey(const Key('daysTab')), findsNothing);
+      await tapKey(tester, 'myPhotosTab');
       expect(find.byKey(const Key('noPhotos')), findsOneWidget);
 
       await tapKey(tester, 'addPhotosButton');
@@ -130,8 +137,8 @@ void main() {
       }
       viewer = dominique;
 
-      await tapKey(tester, 'myStay-$summer');
-      await tapKey(tester, 'stayDaysSpace');
+      await tapKey(tester, 'newsModule');
+      await tapKey(tester, 'daysTab');
       expect(find.byKey(const Key('noDays')), findsOneWidget);
 
       // Le premier jour libre du séjour, à venir : le 10 juillet.
@@ -166,10 +173,8 @@ void main() {
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('status-published')), findsOneWidget);
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
 
-      await tapKey(tester, 'stayNewsSpace');
+      await tapKey(tester, 'publishedTab');
       expect(find.byKey(const Key('familiesView')), findsOneWidget);
       expect(find.text('Samedi 10 juillet'), findsOneWidget);
       expect(find.text('Tout le monde est bien arrivé !'), findsOneWidget);
@@ -180,8 +185,8 @@ void main() {
 
   testWidgets('un jour vide ne se publie pas', (tester) async {
     await launchAs(tester, dominique);
-    await tapKey(tester, 'myStay-$summer');
-    await tapKey(tester, 'stayDaysSpace');
+    await tapKey(tester, 'newsModule');
+    await tapKey(tester, 'daysTab');
     await tapKey(tester, 'newDayButton');
     await tester.tap(find.text('Valider'));
     await tester.pumpAndSettle();
@@ -224,8 +229,8 @@ void main() {
     );
     viewer = sacha;
 
-    await tapKey(tester, 'myStay-$summer');
-    await tapKey(tester, 'newsFeedSpace');
+    // Les nouvelles publiées sont le premier onglet du module.
+    await tapKey(tester, 'newsModule');
 
     expect(find.byKey(Key('news-${published.id}')), findsOneWidget);
     expect(find.text('Arrivée'), findsOneWidget);

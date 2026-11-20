@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lecoteaufleuri/core/application/dtos/stay.dto.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/stays.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_create.page.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_error_message.dart';
-import 'package:lecoteaufleuri/ui/pages/stays/stay.page.dart';
+import 'package:lecoteaufleuri/ui/router/app_routes.dart';
+import 'package:lecoteaufleuri/ui/shell/app_shell.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
 /// Les séjours de l'association, pour un admin : du dernier commencé (ou à
-/// venir) au plus ancien, la création d'un nouveau, et la fiche de chacun
-/// (sa direction).
+/// venir) au plus ancien, la création d'un nouveau, et l'ouverture de
+/// chacun, avec tous les droits.
 class StaysPage extends ConsumerWidget {
   const StaysPage({super.key});
 
@@ -32,7 +34,10 @@ class StaysPage extends ConsumerWidget {
     final value = stays.value;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Séjours')),
+      appBar: AppBar(
+        automaticallyImplyLeading: shellShowsBack(context),
+        title: const Text('Séjours'),
+      ),
       floatingActionButton: value == null
           ? null
           : FloatingActionButton.extended(
@@ -99,11 +104,7 @@ class _StayList extends StatelessWidget {
               '${stayKindLabel(stay.kind)}',
             ),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => StayPage(stayId: stay.id, name: stay.name),
-              ),
-            ),
+            onTap: () => context.go(AppRoutes.stay(stay.id)),
           ),
       ],
     );
