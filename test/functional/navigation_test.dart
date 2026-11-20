@@ -159,11 +159,21 @@ void main() {
         expect(appBarTitle(tester), 'Équipe');
         expect(find.byType(BackButton), findsNothing);
 
-        expect(find.text('Se déconnecter'), findsOneWidget);
+        final logout = find.byKey(const Key('logoutButton'));
+        final iconBefore = tester.getCenter(
+          find.descendant(of: logout, matching: find.byType(Icon)),
+        );
+        expect(tester.getSize(logout).width, greaterThan(200));
+
         await tapKey(tester, 'toggleNav');
-        // Repliée : l'icône seule, le libellé en infobulle.
-        expect(find.text('Se déconnecter'), findsNothing);
-        expect(find.byKey(const Key('logoutButton')), findsOneWidget);
+        // Repliée : l'entrée se réduit à son icône, qui n'a pas bougé.
+        expect(tester.getSize(logout).width, lessThan(100));
+        expect(
+          tester.getCenter(
+            find.descendant(of: logout, matching: find.byType(Icon)),
+          ),
+          iconBefore,
+        );
       },
     );
 

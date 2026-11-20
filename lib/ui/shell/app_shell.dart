@@ -432,15 +432,19 @@ class _SideNav extends ConsumerWidget {
       ),
     };
 
-    return SizedBox(
-      width: extended ? 256 : 88,
+    return AnimatedContainer(
+      duration: _navAnimation,
+      curve: Curves.easeInOut,
+      width: extended ? _extendedWidth : _collapsedWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Le bouton reste en place : son icône, comme toutes celles de la
+          // barre, est centrée sur la largeur repliée.
           Padding(
-            padding: EdgeInsets.fromLTRB(extended ? 16 : 0, 8, 0, 4),
+            padding: const EdgeInsets.fromLTRB(20, 8, 0, 4),
             child: Align(
-              alignment: extended ? Alignment.centerLeft : Alignment.center,
+              alignment: Alignment.centerLeft,
               child: IconButton(
                 key: const Key('toggleNav'),
                 icon: Icon(extended ? Icons.menu_open : Icons.menu),
@@ -463,7 +467,6 @@ class _SideNav extends ConsumerWidget {
                     label: entry.label,
                     selected: index == selected,
                     extended: extended,
-                    labelWhenCollapsed: true,
                     onTap: () => context.go(entry.target),
                   ),
               ],
@@ -493,17 +496,58 @@ class _SideNav extends ConsumerWidget {
   }
 }
 
-/// Une entrée de la barre latérale. Dépliée : icône et libellé dans une
-/// pastille. Repliée : l'icône dans sa pastille, et dessous son libellé
-/// court si [labelWhenCollapsed] (les modules), sinon une infobulle (le pied
-/// de la barre).
+/// Durée du repli et du dépli de la barre latérale.
+const _navAnimation = Duration(milliseconds: 200);
+const _collapsedWidth = 88.0;
+const _extendedWidth = 256.0;
+
+/// Marge de chaque entrée : avec elle, les icônes tombent au milieu de la
+/// largeur repliée, et ne bougent pas quand la barre se déplie.
+const _navMargin = 16.0;
+
+/// Ce qui n'apparaît que la barre dépliée (libellés, détails du séjour) :
+/// posé à sa largeur dépliée et dévoilé par la barre qui s'élargit, en
+/// fondu, plutôt que remis en page à chaque instant de l'animation.
+class _Reveal extends StatelessWidget {
+  final bool visible;
+  final double width;
+  final Widget child;
+
+  const _Reveal({
+    required this.visible,
+    required this.width,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) => UnconstrainedBox(
+    constrainedAxis: Axis.vertical,
+    alignment: AlignmentDirectional.centerStart,
+    clipBehavior: Clip.hardEdge,
+    child: SizedBox(
+      width: width,
+      child: ExcludeSemantics(
+        excluding: !visible,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: _navAnimation,
+          curve: visible ? Curves.easeIn : Curves.easeOut,
+          child: child,
+        ),
+      ),
+    ),
+  );
+}
+
+/// Une entrée de la barre latérale : une pastille qui s'étire avec la barre,
+/// l'icône à gauche, le libellé dévoilé à droite. Repliée, le libellé passe
+/// en infobulle.
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final IconData? selectedIcon;
   final String label;
   final bool selected;
   final bool extended;
-  final bool labelWhenCollapsed;
   final VoidCallback onTap;
 
   const _NavItem({
@@ -513,94 +557,60 @@ class _NavItem extends StatelessWidget {
     required this.label,
     this.selected = false,
     required this.extended,
-    this.labelWhenCollapsed = false,
     required this.onTap,
   });
+
+  /// La place du libellé, la barre dépliée.
+  static const _labelWidth =
+      _extendedWidth - 2 * _navMargin - 16 - 24 - 12 - 16;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final glyph = Icon(
-      selected ? (selectedIcon ?? icon) : icon,
-      color: selected ? colors.onSecondaryContainer : colors.onSurfaceVariant,
-    );
-    final fill = selected ? colors.secondaryContainer : Colors.transparent;
+    final foreground = selected
+        ? colors.onSecondaryContainer
+        : colors.onSurfaceVariant;
 
-    if (extended) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _navMargin, vertical: 2),
+      child: Tooltip(
+        // Vide, l'infobulle ne s'affiche pas : le libellé est déjà visible.
+        message: extended ? '' : label,
         child: Material(
-          color: fill,
+          color: selected ? colors.secondaryContainer : Colors.transparent,
           shape: const StadiumBorder(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             child: SizedBox(
               height: 48,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    glyph,
-                    const SizedBox(width: 12),
-                    Expanded(
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  Icon(
+                    selected ? (selectedIcon ?? icon) : icon,
+                    color: foreground,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _Reveal(
+                      visible: extended,
+                      width: _labelWidth,
                       child: Text(
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
-                          color: selected
-                              ? colors.onSecondaryContainer
-                              : colors.onSurfaceVariant,
+                          color: foreground,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        ),
-      );
-    }
-
-    final pill = Container(
-      width: 56,
-      height: 32,
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: glyph,
-    );
-    if (!labelWhenCollapsed) {
-      return Center(
-        child: IconButton(
-          icon: Icon(icon, color: colors.onSurfaceVariant),
-          tooltip: label,
-          onPressed: onTap,
-        ),
-      );
-    }
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        child: Column(
-          children: [
-            pill,
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: selected ? colors.onSurface : colors.onSurfaceVariant,
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -673,64 +683,69 @@ class _StaySwitcher extends ConsumerWidget {
         final onTap = canSwitch
             ? () => controller.isOpen ? controller.close() : controller.open()
             : null;
-        if (!extended) {
-          return Center(
-            child: Tooltip(
-              message: name,
+        // Une carte qui s'étire avec la barre : l'avatar à gauche, centré
+        // sur la largeur repliée, et les détails dévoilés à droite.
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _navMargin),
+          child: Tooltip(
+            message: extended ? '' : name,
+            child: Material(
+              color: theme.colorScheme.surfaceContainerLow,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+              clipBehavior: Clip.antiAlias,
               child: InkWell(
                 key: const Key('staySwitcher'),
-                borderRadius: BorderRadius.circular(12),
                 onTap: onTap,
-                child: StayAvatar(name: name, size: 40),
-              ),
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Material(
-            color: theme.colorScheme.surfaceContainerLow,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: theme.colorScheme.outlineVariant),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              key: const Key('staySwitcher'),
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
-                  children: [
-                    StayAvatar(name: name, size: 36),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall,
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      StayAvatar(name: name, size: 36),
+                      Expanded(
+                        child: _Reveal(
+                          visible: extended,
+                          width: _detailsWidth,
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleSmall,
+                                    ),
+                                    if (space != null) ...[
+                                      Text(
+                                        space!.role == null
+                                            ? 'Administration'
+                                            : staffRoleLabel(space!.role!),
+                                        style: muted,
+                                      ),
+                                      Text(
+                                        displayStayDates(
+                                          stay!.startsOn,
+                                          stay.endsOn,
+                                        ),
+                                        style: muted,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              if (canSwitch) const Icon(Icons.unfold_more),
+                            ],
                           ),
-                          if (space != null) ...[
-                            Text(
-                              space!.role == null
-                                  ? 'Administration'
-                                  : staffRoleLabel(space!.role!),
-                              style: muted,
-                            ),
-                            Text(
-                              displayStayDates(stay!.startsOn, stay.endsOn),
-                              style: muted,
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (canSwitch) const Icon(Icons.unfold_more),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -739,6 +754,9 @@ class _StaySwitcher extends ConsumerWidget {
       },
     );
   }
+
+  /// La place des détails à droite de l'avatar, la barre dépliée.
+  static const _detailsWidth = _extendedWidth - 2 * _navMargin - 2 * 10 - 36;
 }
 
 /// Les initiales d'un séjour, pour le reconnaître dans un rail ou une liste :
