@@ -177,14 +177,27 @@ class InMemoryStayRepository implements StayRepository {
     return _detail(stay);
   }
 
-  /// Comme l'API, seuls les séjours dont le compte ouvre la fiche : un
-  /// animateur n'y voit pas (encore) le sien.
+  /// Comme l'API, tous les séjours où le compte a un rôle, animateur compris.
   @override
   Future<List<MyStay>> mine() async => [
     for (final stay in _sorted(_stays))
-      if (_roleOf(stay) case final StaffRole role when _direction(role))
+      if (_roleOf(stay) case final StaffRole role)
         MyStay(stay: stay, role: role),
   ];
+
+  /// Le séjour [stayId], s'il existe : les nouvelles en mémoire y lisent ses
+  /// dates.
+  Stay? stayById(String stayId) =>
+      _stays.where((s) => s.id == stayId).firstOrNull;
+
+  /// Le rôle de [accountId] dans le séjour : les nouvelles en mémoire en
+  /// tirent les droits du compte connecté.
+  StaffRole? roleIn(String stayId, String accountId) =>
+      _staff[stayId]?[accountId];
+
+  /// Le nom d'un compte, pour l'auteur d'une photo.
+  User? accountById(String accountId) =>
+      _accounts.where((a) => a.id == accountId).firstOrNull;
 
   /// Directeurs et adjoints : voir le séjour et son équipe, y affecter les
   /// animateurs.

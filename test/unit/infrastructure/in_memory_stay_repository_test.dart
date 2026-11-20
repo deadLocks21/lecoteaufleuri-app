@@ -117,8 +117,8 @@ void main() {
     expect(detail.deputies.single.lastName, 'Petit');
   });
 
-  test('directeur et adjoint ajoutent ou retirent des animateurs, qui ne '
-      'voient pas le séjour', () async {
+  test('directeur et adjoint ajoutent ou retirent des animateurs, qui '
+      'n\'ouvrent pas la fiche du séjour', () async {
     const camille = '0a5c0000-0000-4000-8000-0000000000ff';
     final camillePhone = PhoneNumber.parse('06 12 34 56 78');
     final staff = {
@@ -145,7 +145,8 @@ void main() {
       viewer: () => (id: camille, isAdmin: false),
     );
     await expectLater(animator.get(summer), failsWith(StayErrorCode.forbidden));
-    expect(await animator.mine(), isEmpty);
+    // Il retrouve pourtant son séjour, pour y déposer ses photos.
+    expect((await animator.mine()).single.role, StaffRole.animator);
   });
 
   test('un membre de la direction ne passe animateur que sur confirmation, '

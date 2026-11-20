@@ -32,6 +32,23 @@ abstract final class ApiEndpoints {
   static String stayAnimator(String id, String accountId) =>
       '${stayAnimators(id)}/$accountId';
 
-  /// Les séjours où le compte connecté est directeur ou adjoint.
+  /// Les séjours où le compte connecté a un rôle.
   static const myStays = '/api/me/stays';
+
+  /// Les nouvelles d'un séjour : photos de l'équipe, jours de la direction,
+  /// lecture des jours publiés.
+  static String stayPhotos(String id) => '${stay(id)}/photos';
+  static String stayPhoto(String id, String photoId) =>
+      '${stayPhotos(id)}/$photoId';
+  static String stayPhotoSorting(String id, String photoId) =>
+      '${stayPhoto(id, photoId)}/sorting';
+  static String stayPhotoImage(String id, String photoId) =>
+      '${stayPhoto(id, photoId)}/image';
+  static String stayDays(String id) => '${stay(id)}/days';
+  static String stayDay(String id, String dayId) => '${stayDays(id)}/$dayId';
+  static String stayDayPhotos(String id, String dayId) =>
+      '${stayDay(id, dayId)}/photos';
+  static String stayDayPublication(String id, String dayId) =>
+      '${stayDay(id, dayId)}/publication';
+  static String stayNews(String id) => '${stay(id)}/news';
 }

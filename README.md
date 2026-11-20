@@ -34,7 +34,8 @@ L'app s'ouvre sur la connexion par numéro de mobile + code reçu par SMS.
   Il est admin, pour essayer l'administration des comptes et des séjours
   (comptes et séjours de démo en mémoire) : l'été 2027 est dirigé par
   Dominique Durand ; se nommer adjoint (06 12 34 56 78) le fait apparaître
-  dans « Mes séjours ».
+  dans « Mes séjours ». Ses nouvelles (fiche du séjour) ont déjà quelques
+  photos et journées : une publiée, une programmée, un brouillon.
 - **Contre l'API** (`lecoteaufleuri/api`) : passer son origine à la compilation.
 
   ```sh

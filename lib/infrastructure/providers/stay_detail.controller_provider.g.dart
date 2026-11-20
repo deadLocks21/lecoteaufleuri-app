@@ -8,8 +8,8 @@ part of 'stay_detail.controller_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
-/// adjoints).
+/// Un séjour et son équipe, et ce qu'on peut y changer (directeurs, adjoints,
+/// animateurs).
 ///
 /// Libéré dès que l'écran se ferme (pas de `keepAlive`). Les actions rendent
 /// `null` en cas de succès, sinon l'[StayErrorCode] que l'écran traduit ; le
@@ -18,16 +18,16 @@ part of 'stay_detail.controller_provider.dart';
 @ProviderFor(StayDetailController)
 final stayDetailControllerProvider = StayDetailControllerFamily._();
 
-/// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
-/// adjoints).
+/// Un séjour et son équipe, et ce qu'on peut y changer (directeurs, adjoints,
+/// animateurs).
 ///
 /// Libéré dès que l'écran se ferme (pas de `keepAlive`). Les actions rendent
 /// `null` en cas de succès, sinon l'[StayErrorCode] que l'écran traduit ; le
 /// séjour rendu par l'API remplace l'état.
 final class StayDetailControllerProvider
     extends $AsyncNotifierProvider<StayDetailController, StayDetailDto> {
-  /// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
-  /// adjoints).
+  /// Un séjour et son équipe, et ce qu'on peut y changer (directeurs, adjoints,
+  /// animateurs).
   ///
   /// Libéré dès que l'écran se ferme (pas de `keepAlive`). Les actions rendent
   /// `null` en cas de succès, sinon l'[StayErrorCode] que l'écran traduit ; le
@@ -69,10 +69,10 @@ final class StayDetailControllerProvider
 }
 
 String _$stayDetailControllerHash() =>
-    r'ffcfa24f56263651745aa3a0ec26db797d470dcd';
+    r'f216226f96e3553f9d684dbb4374536ec48558d1';
 
-/// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
-/// adjoints).
+/// Un séjour et son équipe, et ce qu'on peut y changer (directeurs, adjoints,
+/// animateurs).
 ///
 /// Libéré dès que l'écran se ferme (pas de `keepAlive`). Les actions rendent
 /// `null` en cas de succès, sinon l'[StayErrorCode] que l'écran traduit ; le
@@ -96,8 +96,8 @@ final class StayDetailControllerFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
-  /// adjoints).
+  /// Un séjour et son équipe, et ce qu'on peut y changer (directeurs, adjoints,
+  /// animateurs).
   ///
   /// Libéré dès que l'écran se ferme (pas de `keepAlive`). Les actions rendent
   /// `null` en cas de succès, sinon l'[StayErrorCode] que l'écran traduit ; le
@@ -110,8 +110,8 @@ final class StayDetailControllerFamily extends $Family
   String toString() => r'stayDetailControllerProvider';
 }
 
-/// Un séjour et sa direction, et ce qu'on peut y changer (directeur,
-/// adjoints).
+/// Un séjour et son équipe, et ce qu'on peut y changer (directeurs, adjoints,
+/// animateurs).
 ///
 /// Libéré dès que l'écran se ferme (pas de `keepAlive`). Les actions rendent
 /// `null` en cas de succès, sinon l'[StayErrorCode] que l'écran traduit ; le

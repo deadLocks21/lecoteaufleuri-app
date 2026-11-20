@@ -7,14 +7,17 @@ import 'package:lecoteaufleuri/infrastructure/providers/my_stays.provider.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/session.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/accounts.page.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stays.page.dart';
+import 'package:lecoteaufleuri/ui/pages/news/stay_news_hub.page.dart';
 import 'package:lecoteaufleuri/ui/pages/stays/stay.page.dart';
+import 'package:lecoteaufleuri/ui/widgets/space_card.widget.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
 /// Accueil, réservé aux comptes connectés (cf. `AuthGate`).
 ///
 /// Il montre un espace par lien du compte avec l'association, et non un écran
 /// par rôle : une même personne peut être admin, parent et animatrice. Pour
-/// l'instant : « Mes séjours » (ceux que le compte dirige ou seconde) et
+/// l'instant : « Mes séjours » (ceux où le compte a un rôle : la direction en
+/// ouvre la fiche, un animateur ses photos et les nouvelles) et
 /// l'administration (séjours et comptes) ; les enfants viendront avec leurs
 /// liens. Ce que l'accueil n'affiche pas reste de toute façon refusé par l'API.
 class HomePage extends ConsumerWidget {
@@ -29,7 +32,13 @@ class HomePage extends ConsumerWidget {
   void _openStay(BuildContext context, MyStayDto mine) =>
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => StayPage(stayId: mine.stay.id, name: mine.stay.name),
+          builder: (_) => switch (mine.role) {
+            StaffRole.animator => StayNewsHubPage(stay: mine.stay),
+            StaffRole.director || StaffRole.deputy => StayPage(
+              stayId: mine.stay.id,
+              name: mine.stay.name,
+            ),
+          },
         ),
       );
 
@@ -77,7 +86,7 @@ class HomePage extends ConsumerWidget {
                   Text('Mes séjours', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   for (final stay in mine)
-                    _SpaceCard(
+                    SpaceCard(
                       key: Key('myStay-${stay.stay.id}'),
                       icon: switch (stay.role) {
                         StaffRole.director => Icons.workspace_premium_outlined,
@@ -104,7 +113,7 @@ class HomePage extends ConsumerWidget {
                 if (isAdmin) ...[
                   Text('Administration', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
-                  _SpaceCard(
+                  SpaceCard(
                     key: const Key('staysSpace'),
                     icon: Icons.cabin_outlined,
                     title: 'Séjours',
@@ -115,7 +124,7 @@ class HomePage extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  _SpaceCard(
+                  SpaceCard(
                     key: const Key('accountsSpace'),
                     icon: Icons.manage_accounts_outlined,
                     title: 'Comptes',
@@ -138,35 +147,6 @@ class HomePage extends ConsumerWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SpaceCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _SpaceCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
     );
   }

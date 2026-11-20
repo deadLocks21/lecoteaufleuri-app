@@ -35,6 +35,10 @@ void main() {
     User user, {
     Map<String, Map<String, StaffRole>>? staff,
   }) async {
+    // Un écran haut : la fiche du séjour montre ses nouvelles avant l'équipe.
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [

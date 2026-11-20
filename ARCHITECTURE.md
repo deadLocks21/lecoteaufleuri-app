@@ -10,29 +10,37 @@ lib/
 ├── core/
 │   ├── domain/               # Domain (Dart pur)
 │   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft, Stay, StayDraft,
-│   │   │                     # StayTeam (StaffRole, TeamMember, StayDetail, MyStay)
-│   │   ├── exceptions/       # AuthException, AccountException, StayException (+ codes)
-│   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository, StayRepository
+│   │   │                     # StayTeam (StaffRole, TeamMember, StayDetail, MyStay),
+│   │   │                     # News (StayPhoto, PhotoSorting, NewsDay, DayStatus, PublishedDay, PickedPhoto)
+│   │   ├── exceptions/       # AuthException, AccountException, StayException, NewsException (+ codes)
+│   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository, StayRepository,
+│   │                         # NewsRepository, PhotoPicker
 │   └── application/          # Application (Dart pur)
-│       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto, StayDetailDto
+│       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto, StayDetailDto,
+│       │                     # StayPhotoDto, NewsDayDto, PublishedDayDto
 │       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, RefreshSession, Logout ;
 │       │                     # accounts.usecases (ListAccounts, SaveAccount, DeleteAccount…) ;
 │       │                     # stays.usecases (ListStays, CreateStay) ;
-│       │                     # stay_team.usecases (GetStay, NameStaff, RemoveStaff, ListMyStays)
-│       ├── services/         # AuthApplicationService, AccountsApplicationService, StaysApplicationService
+│       │                     # stay_team.usecases (GetStay, NameStaff, RemoveStaff, ListMyStays) ;
+│       │                     # news.usecases (photos, dépôt, tri, jours, publication, lecture)
+│       ├── services/         # AuthApplicationService, AccountsApplicationService, StaysApplicationService,
+│       │                     # NewsApplicationService
 │       └── session_state.dart  # Machine d'états de la session
 ├── infrastructure/
 │   ├── auth/                 # dio.auth.repository, in_memory.auth.repository, user.codec
 │   ├── accounts/             # dio.account.repository, in_memory.account.repository
 │   ├── stays/                # dio.stay.repository, in_memory.stay.repository, stay.codec
+│   ├── news/                 # dio.news.repository, in_memory.news.repository, news.codec,
+│   │                         # image_picker.photo_picker, demo_photos (PNG de démo dessinés à la volée)
 │   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
 │   ├── http/                 # AuthInterceptor (Bearer, 401, 403), chemins et codes d'erreur de l'API
 │   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
 │                             # dont SessionController, AccountsController, StaysController,
-│                             # StayDetailController et myStays
+│                             # StayDetailController, myStays, StayPhotosController,
+│                             # NewsDaysController, stayNews et photoImage
 └── ui/
-    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/, admin/, stays/
-    ├── widgets/              # *.widget.dart partagés : AuthGate ; phone_display, stay_display
+    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, home/, admin/, stays/, news/
+    ├── widgets/              # *.widget.dart partagés : AuthGate, SpaceCard ; phone_display, stay_display
     └── theme/                # AppThemeData : palette du logo (vert, bleu, jaune, anthracite)
 test/
 ├── helpers/                  # Doublures et données partagées (FakeHttpAdapter, fixtures)
@@ -100,6 +108,25 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   puis renvoie la requête avec `demote` — seulement si l'appelant peut le
   retirer de son rôle ; sinon l'erreur s'affiche sous le numéro. En mémoire,
   `InMemoryStayRepository` rejoue ces règles d'après le compte connecté.
+- **Nouvelles du séjour** (`ui/pages/news/`, `ACCES.md` « Nouvelles du
+  séjour ») : la fiche d'un séjour ouvre à la direction les **photos** de
+  toute l'équipe (la pioche : retenues, à trier, écartées), les **journées**
+  et les **nouvelles publiées** (ce que voient les familles). Un animateur
+  retrouve son séjour dans « Mes séjours » et y ouvre **ses** photos et les
+  nouvelles, pas la fiche. On dépose plusieurs photos à la fois
+  (`PhotoPicker`, réduites à 2048 points par `image_picker`), envoyées une à
+  une avec leur progression ; on les trie une à une ou en série (« Trier les
+  n photos qui attendent »). Un jour se crée à une date libre du séjour, se
+  rédige, s'illustre en piochant (les écartées sont repliées, en dernier
+  recours ; une photo d'un autre jour est grisée), s'ordonne en faisant
+  glisser ses photos, se publie tout de suite ou se programme (date puis
+  heure, dans le fuseau de l'appareil), se dépublie. Les images passent par
+  l'API (`photoImage`, en octets, avec le Bearer) : elles restent en mémoire
+  cinq minutes après le dernier écran qui les montre et tombent avec la
+  session. La visionneuse des nouvelles n'offre ni enregistrement ni partage.
+  En mémoire, `InMemoryNewsRepository` rejoue les règles de l'API d'après le
+  rôle du compte connecté dans les séjours de démo, avec quelques photos et
+  jours sur l'été 2027.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on
   touche le `BackButton`.

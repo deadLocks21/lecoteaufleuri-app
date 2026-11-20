@@ -8,7 +8,8 @@ part of 'my_stays.provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Les séjours où le compte connecté est directeur ou adjoint, pour l'accueil.
+/// Les séjours où le compte connecté a un rôle (directeur, adjoint,
+/// animateur), pour l'accueil.
 ///
 /// Sans `keepAlive` : libéré avec l'accueil, donc à la déconnexion. L'accueil
 /// le relit quand les droits du compte sont relus.
@@ -16,7 +17,8 @@ part of 'my_stays.provider.dart';
 @ProviderFor(myStays)
 final myStaysProvider = MyStaysProvider._();
 
-/// Les séjours où le compte connecté est directeur ou adjoint, pour l'accueil.
+/// Les séjours où le compte connecté a un rôle (directeur, adjoint,
+/// animateur), pour l'accueil.
 ///
 /// Sans `keepAlive` : libéré avec l'accueil, donc à la déconnexion. L'accueil
 /// le relit quand les droits du compte sont relus.
@@ -29,7 +31,8 @@ final class MyStaysProvider
           FutureOr<List<MyStayDto>>
         >
     with $FutureModifier<List<MyStayDto>>, $FutureProvider<List<MyStayDto>> {
-  /// Les séjours où le compte connecté est directeur ou adjoint, pour l'accueil.
+  /// Les séjours où le compte connecté a un rôle (directeur, adjoint,
+  /// animateur), pour l'accueil.
   ///
   /// Sans `keepAlive` : libéré avec l'accueil, donc à la déconnexion. L'accueil
   /// le relit quand les droits du compte sont relus.

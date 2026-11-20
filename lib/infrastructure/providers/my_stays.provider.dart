@@ -4,7 +4,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'my_stays.provider.g.dart';
 
-/// Les séjours où le compte connecté est directeur ou adjoint, pour l'accueil.
+/// Les séjours où le compte connecté a un rôle (directeur, adjoint,
+/// animateur), pour l'accueil.
 ///
 /// Sans `keepAlive` : libéré avec l'accueil, donc à la déconnexion. L'accueil
 /// le relit quand les droits du compte sont relus.

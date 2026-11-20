@@ -52,6 +52,7 @@ abstract interface class StayRepository {
   /// Admin, directeurs et adjoints du séjour.
   Future<StayDetail> removeAnimator(String stayId, String accountId);
 
-  /// Les séjours où le compte connecté est directeur ou adjoint.
+  /// Les séjours où le compte connecté a un rôle (directeur, adjoint,
+  /// animateur).
   Future<List<MyStay>> mine();
 }

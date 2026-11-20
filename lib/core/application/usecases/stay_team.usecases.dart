@@ -88,7 +88,7 @@ class RemoveStaffUseCase {
   }
 }
 
-/// Les séjours où le compte connecté est directeur ou adjoint.
+/// Les séjours où le compte connecté a un rôle.
 class ListMyStaysUseCase {
   final StayRepository _stays;
 
