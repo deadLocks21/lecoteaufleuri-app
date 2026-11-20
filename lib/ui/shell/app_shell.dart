@@ -439,18 +439,45 @@ class _SideNav extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Le bouton reste en place : son icône, comme toutes celles de la
-          // barre, est centrée sur la largeur repliée.
+          // L'en-tête : le bouton ☰ et, dépliée, le logo à côté. Le bouton
+          // reste en place : son icône, comme toutes celles de la barre, est
+          // centrée sur la largeur repliée.
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 0, 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                key: const Key('toggleNav'),
-                icon: Icon(extended ? Icons.menu_open : Icons.menu),
-                tooltip: extended ? 'Replier le menu' : 'Déplier le menu',
-                onPressed: onToggle,
-              ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 0, 8),
+            child: Row(
+              children: [
+                IconButton(
+                  key: const Key('toggleNav'),
+                  icon: Icon(extended ? Icons.menu_open : Icons.menu),
+                  tooltip: extended ? 'Replier le menu' : 'Déplier le menu',
+                  onPressed: onToggle,
+                ),
+                Expanded(
+                  child: _Reveal(
+                    visible: extended,
+                    width: _extendedWidth - 20 - 48,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: SizedBox(
+                          height: 44,
+                          child: AspectRatio(
+                            aspectRatio: 948 / 523, // assets/brand/logo.png
+                            child: Image.asset(
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? 'assets/brand/logo_dark.png'
+                                  : 'assets/brand/logo.png',
+                              fit: BoxFit.contain,
+                              semanticLabel: 'Domaine du Coteau Fleuri',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           ?head,
