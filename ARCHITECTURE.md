@@ -101,11 +101,18 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   module ou un onglet, pas une carte de plus.
 - **Le cadre suit la largeur** (`AppShell`) : sous 600 points, un tiroir ☰
   (les séjours par période, l'administration, la déconnexion) et les tuiles
-  de la vue d'ensemble ; jusqu'à 1000, un rail d'icônes ; au-delà, la barre
-  latérale dépliée, avec le sélecteur de séjour en tête. Le rail se déplie et
-  la barre se replie. Les écrans ouverts depuis un module (éditeur d'un jour,
-  visionneuse…) s'empilent dans la zone du contenu, le cadre restant en
-  place ; chaque page a ses messages (`ScaffoldMessenger` du cadre).
+  de la vue d'ensemble ; au-delà, une barre latérale, repliée en rail
+  jusqu'à 1000 points et dépliée ensuite, qu'on replie ou déplie par le
+  bouton de sa tête. Elle porte le sélecteur de séjour (rôle et dates, et
+  les autres séjours du compte), les modules, puis l'administration et la
+  déconnexion. Sur grand écran, elle tient lieu de vue d'ensemble : un
+  séjour s'ouvre sur ses nouvelles, l'administration sur ses séjours. Les
+  écrans ouverts depuis un module (éditeur d'un jour, visionneuse…)
+  s'empilent dans la zone du contenu, le cadre restant en place ; chaque
+  page a ses messages (`ScaffoldMessenger` du cadre).
+- **Transitions** (`PageTransitions`) : sur téléphone, un écran glisse depuis
+  la droite, sur toutes les plateformes ; sur grand écran, changer de module
+  est instantané et un écran ouvert dans le contenu apparaît en fondu.
 - **Tirer la vue d'ensemble vers le bas** relit les droits du compte, ses
   séjours et le séjour ouvert.
 - **Rien ne survit à une session fermée ou à des droits retirés** : la

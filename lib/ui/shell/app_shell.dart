@@ -11,6 +11,7 @@ import 'package:lecoteaufleuri/infrastructure/providers/stay_space.provider.dart
 import 'package:lecoteaufleuri/infrastructure/providers/stays.service_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/stays/stay_modules.dart';
 import 'package:lecoteaufleuri/ui/router/app_routes.dart';
+import 'package:lecoteaufleuri/ui/theme/page_transitions.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
 /// Comment le cadre présente la navigation, selon la largeur de la fenêtre.
@@ -66,11 +67,16 @@ Widget? shellMenuButton(BuildContext context) {
   );
 }
 
-/// Faut-il une flèche de retour en haut d'un module ? Sur téléphone, oui (on
-/// revient aux tuiles) ; ailleurs, le menu de gauche suffit.
-bool shellShowsBack(BuildContext context) =>
+/// Le cadre est-il celui du téléphone (tiroir et tuiles) ? Ailleurs, la
+/// barre latérale montre les modules : pas de vue d'ensemble ni de flèche de
+/// retour vers elle.
+bool isCompactShell(BuildContext context) =>
     (ShellScope.maybeOf(context)?.layout ?? ShellLayout.drawer) ==
     ShellLayout.drawer;
+
+/// Faut-il une flèche de retour en haut d'un module ? Sur téléphone, oui (on
+/// revient aux tuiles) ; ailleurs, la barre latérale suffit.
+bool shellShowsBack(BuildContext context) => isCompactShell(context);
 
 /// Le cadre de l'app connectée : la navigation entre espaces (les séjours du
 /// compte, l'administration) et entre les modules de l'espace ouvert, autour
@@ -128,6 +134,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (location == null) return widget.child;
 
     final layout = ShellLayout.forWidth(MediaQuery.sizeOf(context).width);
+    if (layout != ShellLayout.drawer) _leaveOverview(location);
     final child = ShellScope(
       layout: layout,
       openDrawer: () => _scaffoldKey.currentState?.openDrawer(),
@@ -154,11 +161,44 @@ class _AppShellState extends ConsumerState<AppShell> {
             onToggle: () => setState(() => _extended = !extended),
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: child),
+          Expanded(
+            child: Theme(
+              data: Theme.of(
+                context,
+              ).copyWith(pageTransitionsTheme: PageTransitions.wide),
+              child: child,
+            ),
+          ),
         ],
       ),
     );
   }
+
+  /// Sur grand écran, la barre latérale tient lieu de vue d'ensemble : un
+  /// séjour s'ouvre sur son premier module (les nouvelles, ouvertes à tous),
+  /// l'administration sur ses séjours. Vaut aussi quand la fenêtre s'élargit
+  /// sur une vue d'ensemble.
+  void _leaveOverview(SpaceLocation location) {
+    if (_overviewTarget(location) == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Toujours sur une vue d'ensemble, toujours sur grand écran ?
+      final target = _overviewTarget(SpaceLocation.parse(widget.location));
+      final wide =
+          ShellLayout.forWidth(MediaQuery.sizeOf(context).width) !=
+          ShellLayout.drawer;
+      if (target != null && wide) context.go(target);
+    });
+  }
+
+  static String? _overviewTarget(SpaceLocation? location) => switch (location) {
+    StayLocation(:final stayId, module: null) => AppRoutes.stayModule(
+      stayId,
+      StayModule.news,
+    ),
+    AdminLocation(section: null) => AppRoutes.adminStays,
+    _ => null,
+  };
 }
 
 /// Le compte connecté, s'il l'est encore.
@@ -304,9 +344,25 @@ class _NavDrawer extends ConsumerWidget {
   }
 }
 
-/// Le rail ou la barre latérale : l'espace ouvert en tête (le sélecteur de
-/// séjour, ou le retour au séjour depuis l'administration), ses pages, puis
-/// l'administration, la déconnexion et de quoi replier ou déplier.
+/// Une page de la barre latérale : un module du séjour, ou une page de
+/// l'administration.
+typedef _NavEntry = ({
+  String key,
+  String label,
+  IconData icon,
+  IconData selectedIcon,
+  String target,
+});
+
+/// La barre latérale, dépliée (icônes et libellés) ou repliée en rail.
+///
+/// En tête, de quoi la replier, puis l'espace ouvert (le sélecteur de
+/// séjour, ou le retour au séjour depuis l'administration) ; ensuite les
+/// modules du séjour ou les pages de l'administration ; en pied,
+/// l'administration et la déconnexion.
+///
+/// Les entrées portent les mêmes clés que les tuiles du téléphone
+/// (`newsModule`, `staysSpace`…) : c'est le même geste, ouvrir ce module.
 class _SideNav extends ConsumerWidget {
   final SpaceLocation location;
   final bool extended;
@@ -322,191 +378,237 @@ class _SideNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final viewer = _viewer(ref);
-    final isAdmin = viewer?.isAdmin ?? false;
+    final isAdmin = _viewer(ref)?.isAdmin ?? false;
 
     final (
-      Widget leading,
-      List<
-        ({
-          String key,
-          String label,
-          IconData icon,
-          IconData selectedIcon,
-          String target,
-        })
-      >
-      pages,
+      Widget? head,
+      List<_NavEntry> entries,
       int? selected,
     ) = switch (location) {
       StayLocation(:final stayId, :final module) => () {
         final space = ref.watch(staySpaceProvider(stayId)).value;
-        // Tant que le séjour se lit, les nouvelles (ouvertes à tous) seules.
+        // Tant que le séjour se lit, les nouvelles (ouvertes à tous)
+        // seules.
         final modules = space == null
             ? const [StayModule.news]
             : StayModule.openTo(space, isAdmin: isAdmin);
-        final index = module == null ? 0 : modules.indexOf(module) + 1;
+        final index = module == null ? -1 : modules.indexOf(module);
         return (
           _StaySwitcher(stayId: stayId, space: space, extended: extended),
           [
-            (
-              key: 'nav-overview',
-              label: 'Vue d\'ensemble',
-              icon: Icons.dashboard_outlined,
-              selectedIcon: Icons.dashboard,
-              target: AppRoutes.stay(stayId),
-            ),
             for (final m in modules)
               (
-                key: 'nav-${m.name}',
+                key: '${m.name}Module',
                 label: m.label,
                 icon: m.icon,
                 selectedIcon: m.selectedIcon,
                 target: AppRoutes.stayModule(stayId, m),
               ),
           ],
-          index > 0 || module == null ? index : null,
+          index < 0 ? null : index,
         );
       }(),
       AdminLocation(:final section) => (
         lastStayId == null
-            ? const SizedBox(height: 8)
-            : _NavButton(
+            ? null
+            : _NavItem(
                 key: const Key('backToStay'),
                 icon: Icons.arrow_back,
                 label: 'Retour au séjour',
                 extended: extended,
-                onPressed: () => context.go(AppRoutes.stay(lastStayId!)),
+                onTap: () => context.go(AppRoutes.stay(lastStayId!)),
               ),
         [
-          (
-            key: 'nav-admin',
-            label: 'Administration',
-            icon: Icons.admin_panel_settings_outlined,
-            selectedIcon: Icons.admin_panel_settings,
-            target: AppRoutes.admin,
-          ),
-          (
-            key: 'nav-adminStays',
-            label: 'Séjours',
-            icon: Icons.cabin_outlined,
-            selectedIcon: Icons.cabin,
-            target: AppRoutes.adminStays,
-          ),
-          (
-            key: 'nav-adminAccounts',
-            label: 'Comptes',
-            icon: Icons.manage_accounts_outlined,
-            selectedIcon: Icons.manage_accounts,
-            target: AppRoutes.adminAccounts,
-          ),
+          for (final s in AdminSection.values)
+            (
+              key: '${s.name}Space',
+              label: s.label,
+              icon: s.icon,
+              selectedIcon: s.selectedIcon,
+              target: s.location,
+            ),
         ],
-        switch (section) {
-          null => 0,
-          AdminSection.stays => 1,
-          AdminSection.accounts => 2,
-        },
+        section?.index,
       ),
     };
 
-    return NavigationRail(
-      extended: extended,
-      minExtendedWidth: 256,
-      labelType: extended
-          ? NavigationRailLabelType.none
-          : NavigationRailLabelType.all,
-      selectedIndex: selected,
-      onDestinationSelected: (index) => context.go(pages[index].target),
-      leading: leading,
-      trailing: Expanded(
-        child: Align(
-          alignment: extended ? Alignment.bottomLeft : Alignment.bottomCenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      width: extended ? 256 : 88,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(extended ? 16 : 0, 8, 0, 4),
+            child: Align(
+              alignment: extended ? Alignment.centerLeft : Alignment.center,
+              child: IconButton(
+                key: const Key('toggleNav'),
+                icon: Icon(extended ? Icons.menu_open : Icons.menu),
+                tooltip: extended ? 'Replier le menu' : 'Déplier le menu',
+                onPressed: onToggle,
+              ),
+            ),
+          ),
+          ?head,
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
               children: [
-                if (isAdmin && location is StayLocation)
-                  _NavButton(
-                    key: const Key('adminSpace'),
-                    icon: Icons.admin_panel_settings_outlined,
-                    label: 'Administration',
+                for (final (index, entry) in entries.indexed)
+                  _NavItem(
+                    key: Key(entry.key),
+                    icon: entry.icon,
+                    selectedIcon: entry.selectedIcon,
+                    label: entry.label,
+                    selected: index == selected,
                     extended: extended,
-                    onPressed: () => context.go(AppRoutes.admin),
+                    labelWhenCollapsed: true,
+                    onTap: () => context.go(entry.target),
                   ),
-                _NavButton(
-                  key: const Key('logoutButton'),
-                  icon: Icons.logout,
-                  label: 'Se déconnecter',
-                  extended: extended,
-                  onPressed: () =>
-                      ref.read(sessionControllerProvider.notifier).logout(),
-                ),
-                _NavButton(
-                  key: const Key('toggleNav'),
-                  icon: extended
-                      ? Icons.keyboard_double_arrow_left
-                      : Icons.keyboard_double_arrow_right,
-                  label: extended ? 'Replier' : 'Déplier',
-                  extended: extended,
-                  onPressed: onToggle,
-                ),
               ],
             ),
           ),
-        ),
-      ),
-      destinations: [
-        for (final page in pages)
-          NavigationRailDestination(
-            icon: Icon(page.icon, key: Key(page.key)),
-            selectedIcon: Icon(page.selectedIcon, key: Key(page.key)),
-            label: Text(page.label),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          if (isAdmin && location is StayLocation)
+            _NavItem(
+              key: const Key('adminSpace'),
+              icon: Icons.admin_panel_settings_outlined,
+              label: 'Administration',
+              extended: extended,
+              onTap: () => context.go(AppRoutes.admin),
+            ),
+          _NavItem(
+            key: const Key('logoutButton'),
+            icon: Icons.logout,
+            label: 'Se déconnecter',
+            extended: extended,
+            onTap: () => ref.read(sessionControllerProvider.notifier).logout(),
           ),
-      ],
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }
 
-/// Un bouton du pied du rail : icône seule (avec infobulle) replié, icône et
-/// libellé déplié.
-class _NavButton extends StatelessWidget {
+/// Une entrée de la barre latérale. Dépliée : icône et libellé dans une
+/// pastille. Repliée : l'icône dans sa pastille, et dessous son libellé
+/// court si [labelWhenCollapsed] (les modules), sinon une infobulle (le pied
+/// de la barre).
+class _NavItem extends StatelessWidget {
   final IconData icon;
+  final IconData? selectedIcon;
   final String label;
+  final bool selected;
   final bool extended;
-  final VoidCallback onPressed;
+  final bool labelWhenCollapsed;
+  final VoidCallback onTap;
 
-  const _NavButton({
+  const _NavItem({
     super.key,
     required this.icon,
+    this.selectedIcon,
     required this.label,
+    this.selected = false,
     required this.extended,
-    required this.onPressed,
+    this.labelWhenCollapsed = false,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (!extended) {
-      return IconButton(icon: Icon(icon), tooltip: label, onPressed: onPressed);
-    }
-    return SizedBox(
-      width: 232,
-      child: TextButton.icon(
-        style: TextButton.styleFrom(
-          alignment: Alignment.centerLeft,
-          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final glyph = Icon(
+      selected ? (selectedIcon ?? icon) : icon,
+      color: selected ? colors.onSecondaryContainer : colors.onSurfaceVariant,
+    );
+    final fill = selected ? colors.secondaryContainer : Colors.transparent;
+
+    if (extended) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        child: Material(
+          color: fill,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 48,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    glyph,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: selected
+                              ? colors.onSecondaryContainer
+                              : colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
-        icon: Icon(icon),
-        label: Text(label),
-        onPressed: onPressed,
+      );
+    }
+
+    final pill = Container(
+      width: 56,
+      height: 32,
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: glyph,
+    );
+    if (!labelWhenCollapsed) {
+      return Center(
+        child: IconButton(
+          icon: Icon(icon, color: colors.onSurfaceVariant),
+          tooltip: label,
+          onPressed: onTap,
+        ),
+      );
+    }
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        child: Column(
+          children: [
+            pill,
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: selected ? colors.onSurface : colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Le séjour ouvert, en tête du rail : un menu pour passer à un autre séjour
-/// du compte (et, pour un admin, à la liste de tous).
+/// Le séjour ouvert, en tête de la barre : son rôle et ses dates, et un menu
+/// pour passer à un autre des séjours du compte (s'il en a d'autres).
 class _StaySwitcher extends ConsumerWidget {
   final String stayId;
   final StaySpaceDto? space;
@@ -521,12 +623,14 @@ class _StaySwitcher extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final isAdmin = _viewer(ref)?.isAdmin ?? false;
-    final grouped = staysByPeriod(
-      ref.watch(myStaysProvider).value ?? const [],
-      calendarDay(DateTime.now()),
+    final mine = ref.watch(myStaysProvider).value ?? const <MyStayDto>[];
+    final grouped = staysByPeriod(mine, calendarDay(DateTime.now()));
+    final canSwitch = mine.any((m) => m.stay.id != stayId);
+    final stay = space?.stay;
+    final name = stay?.name ?? '';
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
     );
-    final name = space?.stay.name ?? '';
 
     Widget header(String text) => Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
@@ -558,89 +662,75 @@ class _StaySwitcher extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(mine.stay.name),
-                      Text(
-                        _staySubtitle(mine),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                      Text(_staySubtitle(mine), style: muted),
                     ],
                   ),
                 ),
               ),
           ],
-        if (isAdmin) ...[
-          const Divider(),
-          MenuItemButton(
-            key: const Key('allStays'),
-            leadingIcon: const Icon(Icons.cabin_outlined),
-            onPressed: () => context.go(AppRoutes.adminStays),
-            child: const Text('Tous les séjours de l\'association'),
-          ),
-        ],
       ],
       builder: (context, controller, _) {
-        void toggle() =>
-            controller.isOpen ? controller.close() : controller.open();
+        final onTap = canSwitch
+            ? () => controller.isOpen ? controller.close() : controller.open()
+            : null;
         if (!extended) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8),
+          return Center(
             child: Tooltip(
               message: name,
               child: InkWell(
                 key: const Key('staySwitcher'),
                 borderRadius: BorderRadius.circular(12),
-                onTap: toggle,
+                onTap: onTap,
                 child: StayAvatar(name: name, size: 40),
               ),
             ),
           );
         }
         return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-          child: SizedBox(
-            width: 232,
-            child: Material(
-              color: theme.colorScheme.surfaceContainerLow,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: theme.colorScheme.outlineVariant),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                key: const Key('staySwitcher'),
-                onTap: toggle,
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Row(
-                    children: [
-                      StayAvatar(name: name, size: 36),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Material(
+            color: theme.colorScheme.surfaceContainerLow,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: const Key('staySwitcher'),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    StayAvatar(name: name, size: 36),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall,
+                          ),
+                          if (space != null) ...[
                             Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleSmall,
+                              space!.role == null
+                                  ? 'Administration'
+                                  : staffRoleLabel(space!.role!),
+                              style: muted,
                             ),
-                            if (space != null)
-                              Text(
-                                space!.role == null
-                                    ? 'Administration'
-                                    : staffRoleLabel(space!.role!),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
+                            Text(
+                              displayStayDates(stay!.startsOn, stay.endsOn),
+                              style: muted,
+                            ),
                           ],
-                        ),
+                        ],
                       ),
-                      const Icon(Icons.unfold_more),
-                    ],
-                  ),
+                    ),
+                    if (canSwitch) const Icon(Icons.unfold_more),
+                  ],
                 ),
               ),
             ),

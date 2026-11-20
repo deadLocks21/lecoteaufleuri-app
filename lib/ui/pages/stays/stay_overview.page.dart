@@ -30,6 +30,9 @@ class StayOverviewPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Sur grand écran, la barre latérale en tient lieu : le cadre passe au
+    // premier module.
+    if (!isCompactShell(context)) return const Scaffold();
     final name = ref.watch(staySpaceProvider(stayId)).value?.stay.name;
     final state = ref.watch(sessionControllerProvider);
     final isAdmin = state is Authenticated && state.session.user.isAdmin;

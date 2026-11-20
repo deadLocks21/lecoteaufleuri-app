@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:lecoteaufleuri/ui/pages/stays/stay_modules.dart';
 
 /// Les adresses de l'app. Sur le web elles s'affichent dans la barre
@@ -61,13 +62,34 @@ class AdminLocation extends SpaceLocation {
 
 /// Les pages de l'administration.
 enum AdminSection {
-  stays(AppRoutes.adminStays, 'sejours'),
-  accounts(AppRoutes.adminAccounts, 'comptes');
+  stays(
+    location: AppRoutes.adminStays,
+    path: 'sejours',
+    label: 'Séjours',
+    icon: Icons.cabin_outlined,
+    selectedIcon: Icons.cabin,
+  ),
+  accounts(
+    location: AppRoutes.adminAccounts,
+    path: 'comptes',
+    label: 'Comptes',
+    icon: Icons.manage_accounts_outlined,
+    selectedIcon: Icons.manage_accounts,
+  );
 
   final String location;
   final String path;
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
 
-  const AdminSection(this.location, this.path);
+  const AdminSection({
+    required this.location,
+    required this.path,
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+  });
 
   static AdminSection? fromPath(String path) =>
       values.where((s) => s.path == path).firstOrNull;

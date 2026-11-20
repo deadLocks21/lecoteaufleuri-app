@@ -141,7 +141,8 @@ void main() {
     const desktop = Size(1280, 800);
 
     testWidgets(
-      'la barre latérale mène aux modules sans flèche de retour, et se replie',
+      'la barre latérale tient lieu de vue d\'ensemble, sans flèche de '
+      'retour, et se replie',
       (tester) async {
         await launchAs(
           tester,
@@ -149,19 +150,20 @@ void main() {
           size: desktop,
           remembered: InMemoryLastStayRepository({dominique.id: summer.id}),
         );
-        NavigationRail rail() =>
-            tester.widget<NavigationRail>(find.byType(NavigationRail));
 
-        expect(rail().extended, isTrue);
+        // Le séjour s'ouvre sur son premier module, pas sur des tuiles.
+        expect(appBarTitle(tester), 'Nouvelles');
         expect(find.byKey(const Key('menuButton')), findsNothing);
 
-        await tapKey(tester, 'nav-team');
+        await tapKey(tester, 'teamModule');
         expect(appBarTitle(tester), 'Équipe');
         expect(find.byType(BackButton), findsNothing);
-        expect(rail().selectedIndex, 2);
 
+        expect(find.text('Se déconnecter'), findsOneWidget);
         await tapKey(tester, 'toggleNav');
-        expect(rail().extended, isFalse);
+        // Repliée : l'icône seule, le libellé en infobulle.
+        expect(find.text('Se déconnecter'), findsNothing);
+        expect(find.byKey(const Key('logoutButton')), findsOneWidget);
       },
     );
 
@@ -171,8 +173,8 @@ void main() {
       await tapKey(tester, 'staySwitcher');
       await tapKey(tester, 'myStay-${summer.id}');
 
-      expect(appBarTitle(tester), 'Été — Pyrénées');
-      expect(find.byKey(const Key('nav-team')), findsOneWidget);
+      expect(appBarTitle(tester), 'Nouvelles');
+      expect(find.byKey(const Key('teamModule')), findsOneWidget);
     });
   });
 }

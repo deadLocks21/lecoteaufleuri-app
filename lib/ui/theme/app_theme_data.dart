@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lecoteaufleuri/ui/theme/page_transitions.dart';
 
 /// Assemble les thèmes Material 3 clair/sombre de l'app à partir des couleurs
 /// du logo (`design/logo.jpg` du dépôt dev) : palette « logo à l'identique ».
@@ -38,6 +39,8 @@ abstract final class AppThemeData {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
+      // Le cadre passe à `PageTransitions.wide` sur grand écran.
+      pageTransitionsTheme: PageTransitions.compact,
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: colorScheme.primaryContainer,

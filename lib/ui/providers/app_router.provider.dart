@@ -91,38 +91,57 @@ GoRouter appRouter(Ref ref) {
             NoTransitionPage(key: state.pageKey, child: const OtpVerifyPage()),
       ),
       ShellRoute(
-        builder: (_, state, child) =>
-            AppShell(location: state.uri, child: child),
+        // Le cadre apparaît sans animation après la connexion.
+        pageBuilder: (_, state, child) => NoTransitionPage(
+          key: state.pageKey,
+          child: AppShell(location: state.uri, child: child),
+        ),
         routes: [
-          GoRoute(path: AppRoutes.start, builder: (_, _) => const StartPage()),
+          GoRoute(
+            path: AppRoutes.start,
+            pageBuilder: (_, state) =>
+                NoTransitionPage(key: state.pageKey, child: const StartPage()),
+          ),
           GoRoute(
             path: '/sejours/:stayId',
-            builder: (_, state) =>
-                StayOverviewPage(stayId: state.pathParameters['stayId']!),
+            pageBuilder: (context, state) => _page(
+              context,
+              state,
+              StayOverviewPage(stayId: state.pathParameters['stayId']!),
+            ),
             routes: [
               GoRoute(
                 path: StayModule.news.path,
-                builder: (_, state) =>
-                    StayNewsPage(stayId: state.pathParameters['stayId']!),
+                pageBuilder: (context, state) => _page(
+                  context,
+                  state,
+                  StayNewsPage(stayId: state.pathParameters['stayId']!),
+                ),
               ),
               GoRoute(
                 path: StayModule.team.path,
-                builder: (_, state) =>
-                    StayTeamPage(stayId: state.pathParameters['stayId']!),
+                pageBuilder: (context, state) => _page(
+                  context,
+                  state,
+                  StayTeamPage(stayId: state.pathParameters['stayId']!),
+                ),
               ),
             ],
           ),
           GoRoute(
             path: AppRoutes.admin,
-            builder: (_, _) => const AdminPage(),
+            pageBuilder: (context, state) =>
+                _page(context, state, const AdminPage()),
             routes: [
               GoRoute(
                 path: AdminSection.stays.path,
-                builder: (_, _) => const StaysPage(),
+                pageBuilder: (context, state) =>
+                    _page(context, state, const StaysPage()),
               ),
               GoRoute(
                 path: AdminSection.accounts.path,
-                builder: (_, _) => const AccountsPage(),
+                pageBuilder: (context, state) =>
+                    _page(context, state, const AccountsPage()),
               ),
             ],
           ),
@@ -133,6 +152,14 @@ GoRouter appRouter(Ref ref) {
   ref.onDispose(router.dispose);
   return router;
 }
+
+/// Une page du cadre. Sur grand écran, passer d'un module à l'autre ne
+/// s'anime pas : la barre latérale reste, seul le contenu change. Sur
+/// téléphone, la transition du thème (`PageTransitions.compact`).
+Page<void> _page(BuildContext context, GoRouterState state, Widget child) =>
+    ShellLayout.forWidth(MediaQuery.sizeOf(context).width) == ShellLayout.drawer
+    ? MaterialPage(key: state.pageKey, child: child)
+    : NoTransitionPage(key: state.pageKey, child: child);
 
 /// L'adresse où reprendre après la connexion : celle demandée au lancement si
 /// c'en est une de l'app, sinon l'entrée.

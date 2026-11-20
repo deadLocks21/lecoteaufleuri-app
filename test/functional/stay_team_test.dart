@@ -37,8 +37,8 @@ void main() {
     User user, {
     Map<String, Map<String, StaffRole>>? staff,
   }) async {
-    // Un écran haut : la fiche du séjour montre ses nouvelles avant l'équipe.
-    tester.view.physicalSize = const Size(800, 1600);
+    // Un grand écran haut : barre latérale dépliée, listes entières.
+    tester.view.physicalSize = const Size(1280, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -70,6 +70,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Un texte du sélecteur de séjour, en tête de la barre latérale.
+  Finder inSwitcher(String text) => find.descendant(
+    of: find.byKey(const Key('staySwitcher')),
+    matching: find.text(text),
+  );
+
   /// Ouvre le module Équipe du séjour où l'app s'est ouverte.
   Future<void> openTeam(WidgetTester tester) async {
     await tester.tap(find.byKey(const Key('teamModule')));
@@ -99,8 +105,8 @@ void main() {
     await launchAs(tester, demo);
     await openStayAsAdmin(tester, summer, team: false);
 
-    expect(find.text('Du 10 au 24 juillet 2027'), findsOneWidget);
-    expect(find.text('ACM · Administration'), findsOneWidget);
+    expect(inSwitcher('Du 10 au 24 juillet 2027'), findsOneWidget);
+    expect(inSwitcher('Administration'), findsOneWidget);
     await openTeam(tester);
     expect(find.text('Dominique Durand'), findsOneWidget);
     expect(find.byKey(const Key('noDeputies')), findsOneWidget);
@@ -114,7 +120,6 @@ void main() {
     await launchAs(tester, demo);
     await openStayAsAdmin(tester, weekend, team: false);
 
-    expect(find.byKey(const Key('noDirection')), findsOneWidget);
     expect(find.byKey(const Key('newsModule')), findsOneWidget);
     expect(find.byKey(const Key('teamModule')), findsNothing);
   });
@@ -212,8 +217,8 @@ void main() {
       // Son seul séjour s'ouvre de lui-même.
       expect(find.byKey(const Key('staysSpace')), findsNothing);
       expect(find.byKey(const Key('adminSpace')), findsNothing);
-      expect(find.text('Du 10 au 24 juillet 2027'), findsOneWidget);
-      expect(find.text('ACM · Directeur'), findsOneWidget);
+      expect(inSwitcher('Du 10 au 24 juillet 2027'), findsOneWidget);
+      expect(inSwitcher('Directeur'), findsOneWidget);
 
       await openTeam(tester);
 
@@ -275,7 +280,7 @@ void main() {
       },
     );
 
-    expect(find.text('ACM · Adjoint'), findsOneWidget);
+    expect(inSwitcher('Adjoint'), findsOneWidget);
     await openTeam(tester);
 
     expect(find.text('Dominique Durand'), findsOneWidget);
@@ -383,11 +388,9 @@ void main() {
       await tester.tap(find.byKey(const Key('addDeputyButton')));
       await tester.pumpAndSettle();
       await nameByPhone(tester, '06 12 34 56 78');
-      await tester.tap(find.byKey(const Key('staySwitcher')));
-      await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('myStay-$summer')), findsOneWidget);
-      expect(find.text('Adjoint · Du 10 au 24 juillet 2027'), findsOneWidget);
+      // Le séjour est désormais le sien : il y est adjoint.
+      expect(inSwitcher('Adjoint'), findsOneWidget);
     },
   );
 }

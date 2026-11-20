@@ -11,6 +11,9 @@ class AdminPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sur grand écran, la barre latérale en tient lieu : le cadre passe au
+    // premier module.
+    if (!isCompactShell(context)) return const Scaffold();
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(

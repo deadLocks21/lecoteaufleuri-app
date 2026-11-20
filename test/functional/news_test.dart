@@ -44,8 +44,12 @@ void main() {
   late User viewer;
   late InMemoryNewsRepository news;
 
-  Future<void> launchAs(WidgetTester tester, User user) async {
-    tester.view.physicalSize = const Size(800, 1600);
+  Future<void> launchAs(
+    WidgetTester tester,
+    User user, {
+    Size size = const Size(1280, 1600),
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     viewer = user;
@@ -207,7 +211,9 @@ void main() {
   testWidgets('l\'animateur lit les nouvelles publiées seulement', (
     tester,
   ) async {
-    await launchAs(tester, sacha);
+    // Sur téléphone : l'app s'ouvre sur les tuiles du séjour, les nouvelles
+    // se lisent en ouvrant le module, après la publication qui suit.
+    await launchAs(tester, sacha, size: const Size(390, 844));
     viewer = sacha;
     final photo = await news.upload(summer, (await _TwoPhotos().pick())[0]);
     viewer = dominique;
