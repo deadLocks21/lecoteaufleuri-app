@@ -153,13 +153,10 @@ GoRouter appRouter(Ref ref) {
   return router;
 }
 
-/// Une page du cadre. Sur grand écran, passer d'un module à l'autre ne
-/// s'anime pas : la barre latérale reste, seul le contenu change. Sur
-/// téléphone, la transition du thème (`PageTransitions.compact`).
+/// Une page du cadre, animée selon le thème : `PageTransitions.compact` sur
+/// téléphone, `PageTransitions.wide` sur grand écran (cf. `AppShell`).
 Page<void> _page(BuildContext context, GoRouterState state, Widget child) =>
-    ShellLayout.forWidth(MediaQuery.sizeOf(context).width) == ShellLayout.drawer
-    ? MaterialPage(key: state.pageKey, child: child)
-    : NoTransitionPage(key: state.pageKey, child: child);
+    MaterialPage(key: state.pageKey, child: child);
 
 /// L'adresse où reprendre après la connexion : celle demandée au lancement si
 /// c'en est une de l'app, sinon l'entrée.
