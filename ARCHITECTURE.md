@@ -111,8 +111,8 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   s'empilent dans la zone du contenu, le cadre restant en place ; chaque
   page a ses messages (`ScaffoldMessenger` du cadre).
 - **Transitions** (`PageTransitions`) : sur téléphone, un écran glisse depuis
-  la droite, sur toutes les plateformes ; sur grand écran, celles de
-  Material, propres à chaque plateforme.
+  la droite, sur toutes les plateformes ; sur grand écran, un fondu zoomé,
+  sur toutes les plateformes aussi.
 - **Tirer la vue d'ensemble vers le bas** relit les droits du compte, ses
   séjours et le séjour ouvert.
 - **Rien ne survit à une session fermée ou à des droits retirés** : la
