@@ -7,15 +7,11 @@ import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 /// ses pages. Les tuiles de la vue d'ensemble, le menu latéral et le rail les
 /// lisent tous ici.
 ///
+/// Ils se suivent par ordre alphabétique, partout où on les liste.
+///
 /// Un module n'apparaît qu'à qui y a droit ([isOpenTo]) ; c'est un choix
 /// d'écran, l'API refuse de toute façon le reste (cf. `ACCES.md`).
 enum StayModule {
-  news(
-    path: 'nouvelles',
-    label: 'Nouvelles',
-    icon: Icons.newspaper_outlined,
-    selectedIcon: Icons.newspaper,
-  ),
   calendar(
     path: 'calendrier',
     label: 'Calendrier',
@@ -27,6 +23,12 @@ enum StayModule {
     label: 'Équipe',
     icon: Icons.groups_outlined,
     selectedIcon: Icons.groups,
+  ),
+  news(
+    path: 'nouvelles',
+    label: 'Nouvelles',
+    icon: Icons.newspaper_outlined,
+    selectedIcon: Icons.newspaper,
   );
 
   /// Le segment d'URL du module, sous `/sejours/:id/`.

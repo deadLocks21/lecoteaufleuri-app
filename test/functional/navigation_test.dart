@@ -152,7 +152,7 @@ void main() {
         );
 
         // Le séjour s'ouvre sur son premier module, pas sur des tuiles.
-        expect(appBarTitle(tester), 'Nouvelles');
+        expect(appBarTitle(tester), 'Calendrier');
         expect(find.byKey(const Key('menuButton')), findsNothing);
 
         await tapKey(tester, 'teamModule');
@@ -183,7 +183,7 @@ void main() {
       await tapKey(tester, 'staySwitcher');
       await tapKey(tester, 'myStay-${summer.id}');
 
-      expect(appBarTitle(tester), 'Nouvelles');
+      expect(appBarTitle(tester), 'Calendrier');
       expect(find.byKey(const Key('teamModule')), findsOneWidget);
     });
   });
