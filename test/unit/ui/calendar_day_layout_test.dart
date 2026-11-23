@@ -88,4 +88,26 @@ void main() {
       isFalse,
     );
   });
+
+  test('un créneau se choisit au quart d\'heure près', () {
+    // 10 h 07 tombe dans le quart d'heure de 10 h ; 10 h 15 dans le suivant.
+    expect(quarterAt(607), 600);
+    expect(quarterAt(615), 615);
+    expect(quarterAt(-5), 0);
+    expect(quarterAt(1500), minutesPerDay - slotMinutes);
+  });
+
+  test('un glisser couvre les quarts d\'heure balayés, dans un sens ou '
+      'l\'autre', () {
+    expect(sweptSlot(615, 675), (start: 615, end: 690));
+    expect(sweptSlot(930, 840), (start: 840, end: 945));
+    expect(sweptSlot(600, 600), (start: 600, end: 615));
+  });
+
+  test('un clic donne une heure, sans passer minuit', () {
+    expect(clickedSlot(615), (start: 615, end: 675));
+    expect(clickedSlot(23 * 60 + 30), (start: 1410, end: minutesPerDay));
+    expect(clockAt(615), const ClockTime(10, 15));
+    expect(clockAt(minutesPerDay), const ClockTime(23, 59));
+  });
 }

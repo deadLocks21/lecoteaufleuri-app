@@ -114,9 +114,9 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
     );
   }
 
-  /// Ajoute (ou propose) un événement, le jour affiché ou [day], à [start]
-  /// s'il vient d'un créneau touché dans la grille.
-  Future<void> _add({DateTime? day, ClockTime? start}) async {
+  /// Ajoute (ou propose) un événement, le jour affiché ou [day], de [start]
+  /// à [end] s'il vient d'un créneau choisi dans la grille.
+  Future<void> _add({DateTime? day, ClockTime? start, ClockTime? end}) async {
     final stay = widget.stay;
     final direction = widget.direction;
     final calendar = ref.read(stayCalendarControllerProvider(stay.id).notifier);
@@ -134,6 +134,7 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
               : 'La direction verra votre proposition et pourra l\'accepter.',
           defaultDay: day ?? _days[_first],
           defaultStartTime: start,
+          defaultEndTime: end,
           asksMessage: !direction,
           onSubmit: ({entry, occurrence, required message}) => direction
               ? calendar.create(entry!)
@@ -236,8 +237,8 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
                             onRefresh: () => ref.refresh(
                               stayCalendarControllerProvider(stay.id).future,
                             ),
-                            onSlot: (day, start) =>
-                                _add(day: day, start: start),
+                            onSlot: (day, start, end) =>
+                                _add(day: day, start: start, end: end),
                           )
                         : Row(
                             crossAxisAlignment: CrossAxisAlignment.start,

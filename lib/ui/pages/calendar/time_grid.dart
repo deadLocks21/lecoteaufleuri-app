@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lecoteaufleuri/core/application/dtos/calendar.dto.dart';
 import 'package:lecoteaufleuri/core/application/dtos/stay.dto.dart';
@@ -22,8 +24,8 @@ const gridGutterWidth = 52.0;
 /// largeur. Ce qui dure toute la journée (ou plusieurs jours) est dans le
 /// bandeau du haut, sous le jour. Une ligne marque l'heure qu'il est.
 ///
-/// Toucher un créneau libre y ajoute un événement (la direction) ou en
-/// propose un (un animateur), à cette heure-là.
+/// Choisir un créneau libre — un clic, ou un glisser au quart d'heure près —
+/// y ajoute un événement (la direction) ou en propose un (un animateur).
 class CalendarTimeGrid extends ConsumerWidget {
   final StayDto stay;
   final List<DateTime> days;
@@ -31,7 +33,7 @@ class CalendarTimeGrid extends ConsumerWidget {
   final bool direction;
   final ScrollController scroll;
   final Future<void> Function() onRefresh;
-  final void Function(DateTime day, ClockTime start) onSlot;
+  final void Function(DateTime day, ClockTime start, ClockTime end) onSlot;
 
   const CalendarTimeGrid({
     super.key,
@@ -105,7 +107,7 @@ class CalendarTimeGrid extends ConsumerWidget {
                           ]),
                           isToday: day == today,
                           onOpen: open,
-                          onSlot: (start) => onSlot(day, start),
+                          onSlot: (start, end) => onSlot(day, start, end),
                         ),
                       ),
                   ],
@@ -275,12 +277,17 @@ class _HourLabels extends StatelessWidget {
 
 /// Les heures d'un jour : les traits des heures, les blocs des occurrences et,
 /// aujourd'hui, la ligne de l'heure qu'il est.
-class _DayHours extends StatelessWidget {
+///
+/// On y choisit un créneau libre, au quart d'heure près : un clic (ou une
+/// touche) pour une heure à partir du quart d'heure touché ; un glisser
+/// pour en tracer la durée — à la souris directement, au doigt après un
+/// appui long, pour ne pas confondre avec le défilement.
+class _DayHours extends StatefulWidget {
   final DateTime day;
   final List<PlacedOccurrence> placed;
   final bool isToday;
   final ValueChanged<CalendarOccurrenceDto> onOpen;
-  final ValueChanged<ClockTime> onSlot;
+  final void Function(ClockTime start, ClockTime end) onSlot;
 
   const _DayHours({
     required this.day,
@@ -291,25 +298,108 @@ class _DayHours extends StatelessWidget {
   });
 
   @override
+  State<_DayHours> createState() => _DayHoursState();
+}
+
+class _DayHoursState extends State<_DayHours> {
+  /// Le quart d'heure où le glisser a commencé, et celui où il en est.
+  int? _anchor;
+  int? _current;
+
+  static int _quarterAt(double dy) => quarterAt(dy / gridHourHeight * 60);
+
+  void _begin(double dy) => setState(() => _anchor = _current = _quarterAt(dy));
+
+  void _extend(double dy) {
+    if (_anchor == null) return;
+    final quarter = _quarterAt(dy);
+    if (quarter != _current) setState(() => _current = quarter);
+  }
+
+  void _finish() {
+    final (anchor, current) = (_anchor, _current);
+    _cancel();
+    if (anchor == null || current == null) return;
+    final slot = sweptSlot(anchor, current);
+    widget.onSlot(clockAt(slot.start), clockAt(slot.end));
+  }
+
+  void _cancel() => setState(() => _anchor = _current = null);
+
+  void _click(double dy) {
+    final slot = clickedSlot(_quarterAt(dy));
+    widget.onSlot(clockAt(slot.start), clockAt(slot.end));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final selection = switch ((_anchor, _current)) {
+      (final int anchor, final int current) => sweptSlot(anchor, current),
+      _ => null,
+    };
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         return Stack(
           children: [
             Positioned.fill(
-              child: GestureDetector(
-                key: Key('slots-${day.toIso8601String()}'),
+              child: RawGestureDetector(
+                key: Key('slots-${widget.day.toIso8601String()}'),
                 behavior: HitTestBehavior.opaque,
-                // Le créneau de la demi-heure touchée.
-                onTapUp: (details) {
-                  final minutes =
-                      (details.localPosition.dy / gridHourHeight * 60) ~/
-                      30 *
-                      30;
-                  final start = minutes.clamp(0, minutesPerDay - 30);
-                  onSlot(ClockTime(start ~/ 60, start % 60));
+                gestures: {
+                  TapGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        TapGestureRecognizer
+                      >(
+                        TapGestureRecognizer.new,
+                        (recognizer) =>
+                            recognizer.onTapUp = (details) =>
+                                _click(details.localPosition.dy),
+                      ),
+                  // À la souris, on glisse tout de suite : elle ne fait pas
+                  // défiler la grille.
+                  VerticalDragGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        VerticalDragGestureRecognizer
+                      >(
+                        () => VerticalDragGestureRecognizer(
+                          supportedDevices: const {PointerDeviceKind.mouse},
+                        ),
+                        (recognizer) => recognizer
+                          ..dragStartBehavior = DragStartBehavior.down
+                          ..onStart = ((details) {
+                            _begin(details.localPosition.dy);
+                          })
+                          ..onUpdate = ((details) {
+                            _extend(details.localPosition.dy);
+                          })
+                          ..onEnd = ((_) => _finish())
+                          ..onCancel = _cancel,
+                      ),
+                  // Au doigt, le glisser fait défiler : on trace après un
+                  // appui long.
+                  LongPressGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        LongPressGestureRecognizer
+                      >(
+                        () => LongPressGestureRecognizer(
+                          supportedDevices: const {
+                            PointerDeviceKind.touch,
+                            PointerDeviceKind.stylus,
+                          },
+                        ),
+                        (recognizer) => recognizer
+                          ..onLongPressStart = (details) {
+                            HapticFeedback.selectionClick();
+                            _begin(details.localPosition.dy);
+                          }
+                          ..onLongPressMoveUpdate = ((details) {
+                            _extend(details.localPosition.dy);
+                          })
+                          ..onLongPressEnd = ((_) => _finish())
+                          ..onLongPressCancel = _cancel,
+                      ),
                 },
                 child: CustomPaint(
                   painter: _HourLines(
@@ -319,7 +409,7 @@ class _DayHours extends StatelessWidget {
                 ),
               ),
             ),
-            for (final item in placed)
+            for (final item in widget.placed)
               Positioned(
                 top: item.start / 60 * gridHourHeight,
                 height: (item.end - item.start) / 60 * gridHourHeight,
@@ -327,14 +417,61 @@ class _DayHours extends StatelessWidget {
                 width: (width - 4) / item.lanes,
                 child: _Block(
                   placed: item,
-                  day: day,
-                  onTap: () => onOpen(item.occurrence),
+                  day: widget.day,
+                  onTap: () => widget.onOpen(item.occurrence),
                 ),
               ),
-            if (isToday) const _NowLine(),
+            if (selection != null)
+              Positioned(
+                top: selection.start / 60 * gridHourHeight,
+                height: (selection.end - selection.start) / 60 * gridHourHeight,
+                left: 2,
+                right: 2,
+                child: _Selection(start: selection.start, end: selection.end),
+              ),
+            if (widget.isToday) const _NowLine(),
           ],
         );
       },
+    );
+  }
+}
+
+/// Le créneau qu'on trace, avec ses heures : `10:15 – 11:30`.
+class _Selection extends StatelessWidget {
+  final int start;
+  final int end;
+
+  const _Selection({required this.start, required this.end});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return IgnorePointer(
+      child: Container(
+        key: const Key('slotSelection'),
+        decoration: BoxDecoration(
+          color: colors.primary.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: colors.primary, width: 1.5),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: Text(
+              '${clockAt(start).format()} – ${clockAt(end).format()}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

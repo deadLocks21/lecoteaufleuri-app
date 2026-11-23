@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:lecoteaufleuri/core/application/dtos/calendar.dto.dart';
+import 'package:lecoteaufleuri/core/domain/model/calendar.dart';
 
 /// Minutes dans une journée.
 const minutesPerDay = 24 * 60;
@@ -105,3 +106,28 @@ List<PlacedOccurrence> layoutDay(
   close();
   return placed;
 }
+
+/// La précision d'un créneau choisi dans la grille : le quart d'heure.
+const slotMinutes = 15;
+
+/// Le quart d'heure qui contient la minute [minutes] de la journée.
+int quarterAt(double minutes) => (minutes ~/ slotMinutes * slotMinutes).clamp(
+  0,
+  minutesPerDay - slotMinutes,
+);
+
+/// Le créneau balayé d'un quart d'heure [from] à un autre [to], dans un sens
+/// ou dans l'autre, tous deux compris : au moins un quart d'heure.
+({int start, int end}) sweptSlot(int from, int to) =>
+    (start: math.min(from, to), end: math.max(from, to) + slotMinutes);
+
+/// Le créneau d'un simple clic : une heure à partir du quart d'heure touché,
+/// sans passer minuit.
+({int start, int end}) clickedSlot(int quarter) =>
+    (start: quarter, end: math.min(quarter + 60, minutesPerDay));
+
+/// L'heure de la minute [minutes] ; minuit, en fin de journée, s'écrit
+/// `23:59` : un événement ne déborde pas sur le lendemain.
+ClockTime clockAt(int minutes) => minutes >= minutesPerDay
+    ? const ClockTime(23, 59)
+    : ClockTime(minutes ~/ 60, minutes % 60);

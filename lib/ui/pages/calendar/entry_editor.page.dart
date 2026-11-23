@@ -40,10 +40,11 @@ class EntryEditorPage extends StatefulWidget {
   final DateTime? occurrenceDay;
   final OccurrenceDraftDto? occurrence;
 
-  /// Le jour proposé pour un nouvel événement, et son heure (un créneau
-  /// touché dans la grille) : il dure alors une heure.
+  /// Le jour proposé pour un nouvel événement, et ses heures (un créneau
+  /// choisi dans la grille ; sans fin, il dure une heure).
   final DateTime? defaultDay;
   final ClockTime? defaultStartTime;
+  final ClockTime? defaultEndTime;
 
   /// Un champ pour écrire à la direction (une suggestion).
   final bool asksMessage;
@@ -60,6 +61,7 @@ class EntryEditorPage extends StatefulWidget {
     this.occurrence,
     this.defaultDay,
     this.defaultStartTime,
+    this.defaultEndTime,
     this.asksMessage = false,
     required this.onSubmit,
   });
@@ -121,9 +123,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final defaultStart = widget.defaultStartTime ?? const ClockTime(10, 0);
     _start = isNew ? defaultStart : start;
     _end = isNew
-        ? (defaultStart.hour < 23
-              ? ClockTime(defaultStart.hour + 1, defaultStart.minute)
-              : null)
+        ? widget.defaultEndTime ??
+              (defaultStart.hour < 23
+                  ? ClockTime(defaultStart.hour + 1, defaultStart.minute)
+                  : null)
         : end;
   }
 

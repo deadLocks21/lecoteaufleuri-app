@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -258,5 +259,63 @@ void main() {
     )).where((entry) => entry.details.title == 'Jeux d\'eau').single;
     expect(added.schedule.startsOn, DateTime.utc(2027, 7, 12));
     expect(added.schedule.startTime, const ClockTime(10, 0));
+  });
+
+  testWidgets('glisser à la souris trace un créneau au quart d\'heure près', (
+    tester,
+  ) async {
+    await launchAs(tester, dominique);
+    await tapKey(tester, 'calendarModule');
+
+    // Le lundi 12 juillet, de 10 h 20 à 11 h 20 : de 10 h 15 à 11 h 30.
+    final slots = find.byKey(
+      Key('slots-${DateTime.utc(2027, 7, 12).toIso8601String()}'),
+    );
+    final top = tester.getTopLeft(slots) + const Offset(20, 0);
+    final mouse = await tester.startGesture(
+      top + const Offset(0, 10 * 56 + 19),
+      kind: PointerDeviceKind.mouse,
+    );
+    await mouse.moveTo(top + const Offset(0, 10 * 56 + 40));
+    await mouse.moveTo(top + const Offset(0, 11 * 56 + 19));
+    await tester.pump();
+    expect(find.byKey(const Key('slotSelection')), findsOneWidget);
+    expect(find.text('10:15 – 11:30'), findsOneWidget);
+
+    await mouse.up();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('slotSelection')), findsNothing);
+    expect(find.text('Nouvel événement'), findsOneWidget);
+    expect(find.text('Le 12 juil.'), findsOneWidget);
+    expect(find.text('Début 10:15'), findsOneWidget);
+    expect(find.text('Fin 11:30'), findsOneWidget);
+  });
+
+  testWidgets('au doigt, on trace après un appui long, même vers le haut', (
+    tester,
+  ) async {
+    await launchAs(tester, sacha);
+    await tapKey(tester, 'calendarModule');
+
+    // De 15 h 40 en remontant jusqu'à 14 h 05 : de 14 h à 15 h 45.
+    final slots = find.byKey(
+      Key('slots-${DateTime.utc(2027, 7, 12).toIso8601String()}'),
+    );
+    final top = tester.getTopLeft(slots) + const Offset(20, 0);
+    final finger = await tester.startGesture(
+      top + const Offset(0, 15 * 56 + 38),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await finger.moveTo(top + const Offset(0, 15 * 56));
+    await finger.moveTo(top + const Offset(0, 14 * 56 + 5));
+    await tester.pump();
+    expect(find.text('14:00 – 15:45'), findsOneWidget);
+
+    await finger.up();
+    await tester.pumpAndSettle();
+    // Un animateur propose : la direction décidera.
+    expect(find.text('Proposer un événement'), findsOneWidget);
+    expect(find.text('Début 14:00'), findsOneWidget);
+    expect(find.text('Fin 15:45'), findsOneWidget);
   });
 }
