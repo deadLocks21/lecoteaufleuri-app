@@ -34,6 +34,9 @@ class StayCalendarPage extends ConsumerWidget {
         return Scaffold(
           appBar: AppBar(
             automaticallyImplyLeading: showsBack,
+            // Seule la grille des heures défile, sous la barre des jours :
+            // la barre du haut n'en change pas de couleur.
+            notificationPredicate: (_) => false,
             title: const Text('Calendrier'),
             actions: [
               _SuggestionsButton(
