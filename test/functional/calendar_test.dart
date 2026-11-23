@@ -18,6 +18,7 @@ import 'package:lecoteaufleuri/infrastructure/session/in_memory.session.reposito
 import 'package:lecoteaufleuri/infrastructure/stays/in_memory.last_stay.repository.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/in_memory.stay.repository.dart';
 import 'package:lecoteaufleuri/main.dart';
+import 'package:lecoteaufleuri/ui/pages/calendar/series_scope_dialog.dart';
 
 import '../helpers/fake_auth_repository.dart';
 
@@ -212,7 +213,10 @@ void main() {
       find.text('Tous les jours, du 10 au 24 juillet 2027'),
       findsOneWidget,
     );
-    await tapKey(tester, 'action-cancelDay');
+    // Supprimer, puis « Cet événement » (le choix proposé d'abord).
+    await tapKey(tester, 'action-delete');
+    expect(find.text('Supprimer l\'événement périodique'), findsOneWidget);
+    await tapKey(tester, 'confirmScope');
     expect(find.text('Annulé le samedi 10 juillet.'), findsOneWidget);
     expect(
       (await calendar.entries(summer)).single.changes.single.isCancelled,
@@ -346,5 +350,41 @@ void main() {
     await tapKey(tester, 'discardChanges');
     expect(find.text('Nouvel événement'), findsNothing);
     expect(await calendar.entries(summer), hasLength(1));
+  });
+
+  testWidgets('modifier un jour d\'une série : ce jour, ou toute la série', (
+    tester,
+  ) async {
+    await launchAs(tester, dominique);
+    await tapKey(tester, 'calendarModule');
+    final breakfast = (await calendar.entries(summer)).single.id;
+
+    // Un autre titre, pour ce jour seulement.
+    await tapKey(tester, 'occurrence-$breakfast');
+    await tapKey(tester, 'action-edit');
+    await tester.enterText(find.byKey(const Key('entryTitle')), 'Brunch');
+    await tapKey(tester, 'submitEntry');
+    expect(find.text('Modifier l\'événement périodique'), findsOneWidget);
+    await tapKey(tester, 'confirmScope');
+    var entry = (await calendar.entries(summer)).single;
+    expect(entry.details.title, 'Petit-déjeuner');
+    expect(entry.changes.single.draft?.details.title, 'Brunch');
+
+    // Une autre catégorie ne vaut que pour toute la série.
+    await tapKey(tester, 'occurrence-$breakfast');
+    await tapKey(tester, 'action-edit');
+    await tapKey(tester, 'category-activity');
+    await tapKey(tester, 'submitEntry');
+    expect(
+      tester
+          .widget<RadioListTile<SeriesScope>>(
+            find.byKey(const Key('scope-occurrence')),
+          )
+          .enabled,
+      isFalse,
+    );
+    await tapKey(tester, 'confirmScope');
+    entry = (await calendar.entries(summer)).single;
+    expect(entry.category, CalendarCategory.activity);
   });
 }

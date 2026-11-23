@@ -9,25 +9,14 @@ import 'package:lecoteaufleuri/infrastructure/providers/stay_calendar.controller
 import 'package:lecoteaufleuri/ui/pages/calendar/calendar_display.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/calendar_error_message.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/entry_editor.page.dart';
+import 'package:lecoteaufleuri/ui/pages/calendar/series_scope_dialog.dart';
 import 'package:lecoteaufleuri/ui/pages/news/news_display.dart';
 
 /// Ce qu'on peut faire d'une occurrence, selon qu'on compose le calendrier
-/// (la direction) ou qu'on y propose des changements (un animateur).
-enum _Action {
-  editDay,
-  editSeries,
-  edit,
-  cancelDay,
-  restoreDay,
-  deleteSeries,
-  delete,
-  suggestDay,
-  suggestSeries,
-  suggestChange,
-  suggestCancelDay,
-  suggestCancelSeries,
-  suggestCancel,
-}
+/// (la direction) ou qu'on y propose des changements (un animateur). D'un
+/// jour d'une série, on choisit ensuite, comme dans Google Agenda, si cela
+/// vaut pour ce jour ou pour toute la série.
+enum _Action { edit, delete, restoreDay, suggestChange, suggestCancel }
 
 /// La fiche d'une occurrence, et ce qu'on peut en faire.
 Future<void> showOccurrenceSheet(
@@ -140,60 +129,14 @@ class _OccurrenceSheet extends StatelessWidget {
             const SizedBox(height: 8),
             const Divider(),
             if (direction) ...[
-              if (series) ...[
-                if (!occurrence.cancelled)
-                  action(
-                    _Action.editDay,
-                    Icons.edit_calendar_outlined,
-                    'Modifier ce jour seulement',
-                  ),
+              action(_Action.edit, Icons.edit_outlined, 'Modifier'),
+              action(_Action.delete, Icons.delete_outline, 'Supprimer'),
+              if (occurrence.cancelled || occurrence.changed)
                 action(
-                  _Action.editSeries,
-                  Icons.edit_outlined,
-                  'Modifier toute la série',
+                  _Action.restoreDay,
+                  Icons.restore,
+                  'Rétablir comme le reste de la série',
                 ),
-                if (occurrence.cancelled || occurrence.changed)
-                  action(
-                    _Action.restoreDay,
-                    Icons.restore,
-                    'Rétablir comme le reste de la série',
-                  )
-                else
-                  action(
-                    _Action.cancelDay,
-                    Icons.event_busy_outlined,
-                    'Annuler ce jour seulement',
-                  ),
-                action(
-                  _Action.deleteSeries,
-                  Icons.delete_outline,
-                  'Supprimer toute la série',
-                ),
-              ] else ...[
-                action(_Action.edit, Icons.edit_outlined, 'Modifier'),
-                action(_Action.delete, Icons.delete_outline, 'Supprimer'),
-              ],
-            ] else if (series) ...[
-              action(
-                _Action.suggestDay,
-                Icons.edit_calendar_outlined,
-                'Proposer un changement ce jour',
-              ),
-              action(
-                _Action.suggestSeries,
-                Icons.edit_outlined,
-                'Proposer un changement de la série',
-              ),
-              action(
-                _Action.suggestCancelDay,
-                Icons.event_busy_outlined,
-                'Proposer d\'annuler ce jour',
-              ),
-              action(
-                _Action.suggestCancelSeries,
-                Icons.delete_outline,
-                'Proposer d\'annuler la série',
-              ),
             ] else ...[
               action(
                 _Action.suggestChange,
@@ -259,11 +202,15 @@ Future<void> _run(
       );
   }
 
+  final series = target.isRecurring;
+  final seriesDay = series ? day : null;
+  // Un jour annulé ne se modifie ni ne s'annule plus : seule sa série.
+  final dayEditable = !occurrence.cancelled;
+
   Future<void> editor({
     required String title,
     required String submitLabel,
     String? intro,
-    bool oneDay = false,
     bool asksMessage = false,
     required EditorSubmit onSubmit,
     required String success,
@@ -276,8 +223,9 @@ Future<void> _run(
           submitLabel: submitLabel,
           intro: intro,
           entry: target.draft,
-          occurrenceDay: oneDay ? day : null,
-          occurrence: oneDay ? occurrence.asOccurrenceDraft : null,
+          occurrence: series ? occurrence.asOccurrenceDraft : null,
+          seriesDay: seriesDay,
+          dayEditable: dayEditable,
           asksMessage: asksMessage,
           onSubmit: onSubmit,
         ),
@@ -286,84 +234,85 @@ Future<void> _run(
     if (done == true) tell(null, success);
   }
 
+  /// Pour une série : ce jour, ou toute la série ? Null si l'on renonce.
+  Future<SeriesScope?> scope(String title) => series
+      ? askSeriesScope(
+          context,
+          title: title,
+          occurrenceAllowed: dayEditable,
+          note: dayEditable ? null : 'Ce jour est déjà annulé.',
+        )
+      : Future.value(SeriesScope.series);
+
   switch (action) {
-    case _Action.editDay:
+    case _Action.edit:
       await editor(
-        title: 'Ce jour seulement',
+        title: 'Modifier',
         submitLabel: 'Enregistrer',
-        oneDay: true,
-        onSubmit: ({entry, occurrence, required message}) =>
-            calendar.changeOccurrence(target.id, day, occurrence!),
-        success: 'Le $dayLabel est modifié.',
-      );
-    case _Action.editSeries || _Action.edit:
-      await editor(
-        title: action == _Action.edit ? 'Modifier' : 'Toute la série',
-        submitLabel: 'Enregistrer',
-        intro: action == _Action.editSeries
-            ? 'Les jours modifiés ou annulés à part le restent.'
-            : null,
-        onSubmit: ({entry, occurrence, required message}) =>
-            calendar.edit(target.id, entry!),
+        onSubmit: ({entry, occurrence, required message}) => entry != null
+            ? calendar.edit(target.id, entry)
+            : calendar.changeOccurrence(target.id, day, occurrence!),
         success: 'Événement enregistré.',
       );
-    case _Action.cancelDay:
-      tell(
-        await calendar.setOccurrence(target.id, day, OccurrenceAction.cancel),
-        'Annulé le $dayLabel.',
-      );
+    case _Action.delete:
+      final SeriesScope? chosen;
+      if (series) {
+        chosen = await scope('Supprimer l\'événement périodique');
+      } else {
+        chosen =
+            await confirm(
+              context,
+              title: 'Supprimer cet événement ?',
+              content: '« ${target.draft.title} » disparaît du calendrier.',
+              action: 'Supprimer',
+            )
+            ? SeriesScope.series
+            : null;
+      }
+      switch (chosen) {
+        case SeriesScope.occurrence:
+          tell(
+            await calendar.setOccurrence(
+              target.id,
+              day,
+              OccurrenceAction.cancel,
+            ),
+            'Annulé le $dayLabel.',
+          );
+        case SeriesScope.series:
+          tell(await calendar.delete(target.id), 'Supprimé.');
+        case null:
+          return;
+      }
     case _Action.restoreDay:
       tell(
         await calendar.setOccurrence(target.id, day, OccurrenceAction.restore),
         'Le $dayLabel suit de nouveau la série.',
       );
-    case _Action.deleteSeries || _Action.delete:
-      final series = action == _Action.deleteSeries;
-      final confirmed = await confirm(
-        context,
-        title: series
-            ? 'Supprimer toute la série ?'
-            : 'Supprimer cet événement ?',
-        content: series
-            ? '« ${target.draft.title} » disparaît de tous les jours du séjour.'
-            : '« ${target.draft.title} » disparaît du calendrier.',
-        action: 'Supprimer',
-      );
-      if (confirmed) tell(await calendar.delete(target.id), 'Supprimé.');
-    case _Action.suggestDay:
+    case _Action.suggestChange:
       await editor(
         title: 'Proposer un changement',
         submitLabel: 'Envoyer',
         intro: 'La direction verra votre proposition et pourra l\'accepter.',
-        oneDay: true,
         asksMessage: true,
         onSubmit: ({entry, occurrence, required message}) => suggestions.change(
           target.id,
-          occurrenceDay: day,
+          entry: entry,
+          occurrenceDay: occurrence == null ? null : day,
           occurrence: occurrence,
           message: message,
         ),
         success: 'Proposition envoyée à la direction.',
       );
-    case _Action.suggestSeries || _Action.suggestChange:
-      await editor(
-        title: 'Proposer un changement',
-        submitLabel: 'Envoyer',
-        intro: 'La direction verra votre proposition et pourra l\'accepter.',
-        asksMessage: true,
-        onSubmit: ({entry, occurrence, required message}) =>
-            suggestions.change(target.id, entry: entry, message: message),
-        success: 'Proposition envoyée à la direction.',
-      );
-    case _Action.suggestCancelDay ||
-        _Action.suggestCancelSeries ||
-        _Action.suggestCancel:
-      final oneDay = action == _Action.suggestCancelDay;
+    case _Action.suggestCancel:
+      final chosen = await scope('Proposer l\'annulation');
+      if (chosen == null || !context.mounted) return;
+      final oneDay = chosen == SeriesScope.occurrence;
       final message = await askMessage(
         context,
         title: oneDay
             ? 'Proposer d\'annuler le $dayLabel ?'
-            : action == _Action.suggestCancelSeries
+            : series
             ? 'Proposer d\'annuler toute la série ?'
             : 'Proposer l\'annulation ?',
         hint: 'Pourquoi ? (facultatif)',

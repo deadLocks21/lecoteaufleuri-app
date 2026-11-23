@@ -7,6 +7,7 @@ import 'package:lecoteaufleuri/core/domain/model/calendar.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/calendar_display.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/calendar_error_message.dart';
+import 'package:lecoteaufleuri/ui/pages/calendar/series_scope_dialog.dart';
 import 'package:lecoteaufleuri/ui/pages/news/news_display.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
@@ -50,6 +51,14 @@ class EntryEditorPage extends StatefulWidget {
   final ClockTime? defaultStartTime;
   final ClockTime? defaultEndTime;
 
+  /// Le jour d'une série d'où l'on part pour la modifier : tous les champs
+  /// s'affichent, et l'on choisit en enregistrant si le changement vaut pour
+  /// ce jour ou pour toute la série ([onSubmit] reçoit alors une occurrence,
+  /// ou tout l'événement). Sans [dayEditable] (un jour annulé), seule la
+  /// série se modifie.
+  final DateTime? seriesDay;
+  final bool dayEditable;
+
   /// Un champ pour écrire à la direction (une suggestion).
   final bool asksMessage;
   final EditorSubmit onSubmit;
@@ -66,6 +75,8 @@ class EntryEditorPage extends StatefulWidget {
     this.defaultDay,
     this.defaultStartTime,
     this.defaultEndTime,
+    this.seriesDay,
+    this.dayEditable = true,
     this.asksMessage = false,
     required this.onSubmit,
   });
@@ -96,6 +107,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   /// montre en partant.
   late final String _initial;
 
+  /// Ce qui ne vaut que pour toute la série, à l'ouverture : changé, on ne
+  /// peut plus l'appliquer à un seul jour.
+  late final String _initialSeries;
+
   /// La page se referme pour de bon : envoyée, ou les changements laissés.
   bool _leaving = false;
 
@@ -125,10 +140,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     _endsOn = entry?.endsOn ?? day;
     _weekdays = {...?entry?.weekdays};
     if (_weekdays.isEmpty) _weekdays = {1, 2, 3, 4, 5, 6, 7};
-    final start = widget.editsOccurrence
-        ? occurrence?.startTime
-        : entry?.startTime;
-    final end = widget.editsOccurrence ? occurrence?.endTime : entry?.endTime;
+    // Les heures du jour d'où l'on part, s'il diffère de sa série.
+    final start = occurrence != null ? occurrence.startTime : entry?.startTime;
+    final end = occurrence != null ? occurrence.endTime : entry?.endTime;
     final isNew = entry == null && occurrence == null;
     _allDay = !isNew && start == null;
     final defaultStart = widget.defaultStartTime ?? const ClockTime(10, 0);
@@ -140,7 +154,16 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                   : null)
         : end;
     _initial = _snapshot;
+    _initialSeries = _seriesSnapshot;
   }
+
+  String get _seriesSnapshot => [
+    _category.name,
+    _repeats,
+    _startsOn,
+    _endsOn,
+    (_weekdays.toList()..sort()).join(','),
+  ].join('\u0000');
 
   /// Tout ce qu'on peut changer dans la page, en une valeur comparable.
   String get _snapshot => [
@@ -236,10 +259,29 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
+    var oneDay = widget.editsOccurrence;
+    if (widget.seriesDay != null) {
+      final seriesChanged = _seriesSnapshot != _initialSeries;
+      final scope = await askSeriesScope(
+        context,
+        title: widget.asksMessage
+            ? 'Proposer pour l\'événement périodique'
+            : 'Modifier l\'événement périodique',
+        occurrenceAllowed: widget.dayEditable && !seriesChanged,
+        note: !widget.dayEditable
+            ? 'Ce jour est annulé : seule la série se modifie.'
+            : seriesChanged
+            ? 'La catégorie, les dates et la répétition valent pour toute '
+                  'la série.'
+            : null,
+      );
+      if (scope == null || !mounted) return;
+      oneDay = scope == SeriesScope.occurrence;
+    }
     setState(() => _busy = true);
     final error = await widget.onSubmit(
-      entry: widget.editsOccurrence ? null : _entryDraft,
-      occurrence: widget.editsOccurrence ? _occurrenceDraft : null,
+      entry: oneDay ? null : _entryDraft,
+      occurrence: oneDay ? _occurrenceDraft : null,
       message: _message.text,
     );
     if (!mounted) return;
