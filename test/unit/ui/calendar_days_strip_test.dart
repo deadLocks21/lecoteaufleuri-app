@@ -9,7 +9,7 @@ import 'package:lecoteaufleuri/infrastructure/providers/calendar.repository_prov
 import 'package:lecoteaufleuri/ui/pages/calendar/calendar_days.page.dart';
 
 /// Le bandeau des jours ne sert qu'à choisir ceux qu'on affiche : quand tout
-/// le séjour tient à l'écran, il s'efface, le choix de l'affichage reste.
+/// le séjour tient à l'écran, il s'efface.
 void main() {
   const director = 'director';
 
@@ -51,7 +51,7 @@ void main() {
     await show(tester, stay(2), 1280);
     expect(find.byKey(const Key('previousDays')), findsNothing);
     expect(find.byKey(const Key('strip-13-3')), findsNothing);
-    expect(find.byKey(const Key('toggleView')), findsOneWidget);
+    expect(find.byKey(const Key('timeGrid')), findsOneWidget);
   });
 
   testWidgets('le même week-end sur téléphone : un jour à la fois, à choisir', (

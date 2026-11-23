@@ -218,14 +218,10 @@ void main() {
       isTrue,
     );
 
-    // En liste, le jour annulé le dit en toutes lettres.
-    await tapKey(tester, 'toggleView');
-    expect(find.byKey(const Key('timeGrid')), findsNothing);
-    expect(find.text('Annulé ce jour'), findsOneWidget);
-
+    // Le jour annulé, rouvert, le dit en toutes lettres.
     await tapKey(tester, 'occurrence-$breakfast');
+    expect(find.text('Annulé ce jour'), findsOneWidget);
     await tapKey(tester, 'action-restoreDay');
-    expect(find.text('Annulé ce jour'), findsNothing);
     expect((await calendar.entries(summer)).single.changes, isEmpty);
   });
 
