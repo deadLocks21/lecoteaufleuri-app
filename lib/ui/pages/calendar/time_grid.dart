@@ -15,6 +15,10 @@ import 'package:lecoteaufleuri/ui/pages/calendar/occurrence_actions.dart';
 /// Le décalage d'une occurrence posée sur une autre, par cran.
 const _nestIndent = 12.0;
 
+/// La marge laissée libre à droite des blocs : on y clique ou glisse pour
+/// ajouter un événement en parallèle.
+const _freeMargin = 8.0;
+
 /// La hauteur d'une heure dans la grille.
 const gridHourHeight = 56.0;
 
@@ -420,9 +424,11 @@ class _DayHoursState extends State<_DayHours> {
                     2 +
                     item.indent * _nestIndent +
                     item.lane *
-                        (width - 4 - item.indent * _nestIndent) /
+                        (width - 4 - _freeMargin - item.indent * _nestIndent) /
                         item.lanes,
-                width: (width - 4 - item.indent * _nestIndent) / item.lanes,
+                width:
+                    (width - 4 - _freeMargin - item.indent * _nestIndent) /
+                    item.lanes,
                 child: _Block(
                   placed: item,
                   day: widget.day,
