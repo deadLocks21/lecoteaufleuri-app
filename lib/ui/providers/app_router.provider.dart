@@ -7,6 +7,7 @@ import 'package:lecoteaufleuri/ui/pages/admin/admin.page.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stays.page.dart';
 import 'package:lecoteaufleuri/ui/pages/auth/otp_verify.page.dart';
 import 'package:lecoteaufleuri/ui/pages/auth/phone_entry.page.dart';
+import 'package:lecoteaufleuri/ui/pages/calendar/stay_calendar.page.dart';
 import 'package:lecoteaufleuri/ui/pages/news/stay_news.page.dart';
 import 'package:lecoteaufleuri/ui/pages/start/start.page.dart';
 import 'package:lecoteaufleuri/ui/pages/stays/stay_modules.dart';
@@ -116,6 +117,14 @@ GoRouter appRouter(Ref ref) {
                   context,
                   state,
                   StayNewsPage(stayId: state.pathParameters['stayId']!),
+                ),
+              ),
+              GoRoute(
+                path: StayModule.calendar.path,
+                pageBuilder: (context, state) => _page(
+                  context,
+                  state,
+                  StayCalendarPage(stayId: state.pathParameters['stayId']!),
                 ),
               ),
               GoRoute(

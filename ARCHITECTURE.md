@@ -11,21 +11,27 @@ lib/
 │   ├── domain/               # Domain (Dart pur)
 │   │   ├── model/            # PhoneNumber, OtpCode, User, Session, AccountDraft, Stay, StayDraft,
 │   │   │                     # StayTeam (StaffRole, TeamMember, StayDetail, MyStay),
-│   │   │                     # News (StayPhoto, PhotoSorting, NewsDay, DayStatus, PublishedDay, PickedPhoto)
-│   │   ├── exceptions/       # AuthException, AccountException, StayException, NewsException (+ codes)
+│   │   │                     # News (StayPhoto, PhotoSorting, NewsDay, DayStatus, PublishedDay, PickedPhoto),
+│   │   │                     # Calendar (CalendarEntry, EntrySchedule, ClockTime, OccurrenceChange,
+│   │   │                     # EntryDraft/OccurrenceDraft, CalendarOccurrence, CalendarSuggestion, CalendarFeed)
+│   │   ├── exceptions/       # AuthException, AccountException, StayException, NewsException,
+│   │   │                     # CalendarException (+ codes)
 │   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository, StayRepository,
-│   │                         # LastStayRepository, NewsRepository, PhotoPicker
+│   │                         # LastStayRepository, NewsRepository, PhotoPicker, CalendarRepository
 │   └── application/          # Application (Dart pur)
 │       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto, StayDetailDto,
-│       │                     # MyStayDto, StaySpaceDto, StayPhotoDto, NewsDayDto, PublishedDayDto
+│       │                     # MyStayDto, StaySpaceDto, StayPhotoDto, NewsDayDto, PublishedDayDto,
+│       │                     # StayCalendarDto, CalendarEntryDto, EntryDraftDto, OccurrenceDraftDto,
+│       │                     # CalendarOccurrenceDto, CalendarSuggestionDto, CalendarFeedDto
 │       ├── usecases/         # RequestOtp, VerifyOtp, RestoreSession, RefreshSession, Logout ;
 │       │                     # accounts.usecases (ListAccounts, SaveAccount, DeleteAccount…) ;
 │       │                     # stays.usecases (ListStays, CreateStay) ;
 │       │                     # stay_team.usecases (GetStay, NameStaff, RemoveStaff, ListMyStays) ;
 │       │                     # last_stay.usecases (PickDefaultStay, RememberStay) ;
-│       │                     # news.usecases (photos, dépôt, tri, jours, publication, lecture)
+│       │                     # news.usecases (photos, dépôt, tri, jours, publication, lecture) ;
+│       │                     # calendar.usecases (calendrier, occurrences, suggestions, abonnement)
 │       ├── services/         # AuthApplicationService, AccountsApplicationService, StaysApplicationService,
-│       │                     # NewsApplicationService
+│       │                     # NewsApplicationService, CalendarApplicationService
 │       ├── session_state.dart  # Machine d'états de la session
 │       └── stay_periods.dart   # Séjours en cours / à venir / passés, séjour où ouvrir l'app
 ├── infrastructure/
@@ -35,14 +41,17 @@ lib/
 │   │                         # shared_preferences/in_memory.last_stay.repository
 │   ├── news/                 # dio.news.repository, in_memory.news.repository, news.codec,
 │   │                         # image_picker.photo_picker, demo_photos (PNG de démo dessinés à la volée)
+│   ├── calendar/             # dio.calendar.repository, in_memory.calendar.repository, calendar.codec
 │   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
 │   ├── http/                 # AuthInterceptor (Bearer, 401, 403), chemins et codes d'erreur de l'API
 │   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
 │                             # dont SessionController, AccountsController, StaysController,
 │                             # StayDetailController, myStays, staySpace, StayPhotosController,
-│                             # NewsDaysController, stayNews et photoImage
+│                             # NewsDaysController, stayNews, photoImage, StayCalendarController,
+│                             # CalendarSuggestionsController et CalendarFeedController
 └── ui/
-    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, start/, admin/, stays/, news/
+    ├── pages/<feature>/      # *.page.dart (+ widgets/ propres à la page) : auth/, start/, admin/, stays/, news/,
+    │                         # calendar/
     ├── shell/                # AppShell : tiroir, rail ou barre latérale autour des pages
     ├── router/               # AppRoutes (adresses) et SpaceLocation (l'espace d'une adresse)
     ├── providers/            # appRouter (go_router, redirections d'après la session)
@@ -93,10 +102,10 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   séjours » (`GET /api/me/stays`) sont ceux où le compte a un rôle ; un admin
   ouvre les autres depuis l'administration. Les enfants viendront avec leurs
   liens.
-- **Un séjour se compose de modules** (`StayModule` : Nouvelles, Équipe),
+- **Un séjour se compose de modules** (`StayModule` : Nouvelles, Calendrier, Équipe),
   chacun montré à qui y a droit, et ses pages sont des onglets du module.
   Adresses : `/sejours/:id` (vue d'ensemble, une tuile par module),
-  `/sejours/:id/nouvelles`, `/sejours/:id/equipe`, `/admin`,
+  `/sejours/:id/nouvelles`, `/sejours/:id/calendrier`, `/sejours/:id/equipe`, `/admin`,
   `/admin/sejours`, `/admin/comptes`. Un nouvel écran de séjour devient un
   module ou un onglet, pas une carte de plus.
 - **Le cadre suit la largeur** (`AppShell`) : sous 600 points, un tiroir ☰
@@ -160,6 +169,29 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   En mémoire, `InMemoryNewsRepository` rejoue les règles de l'API d'après le
   rôle du compte connecté dans les séjours de démo, avec quelques photos et
   jours sur l'été 2027.
+- **Calendrier du séjour** (`ui/pages/calendar/`, module Calendrier, `ACCES.md`
+  « Calendrier du séjour ») : toute l'équipe le lit, jour par jour — une
+  colonne par jour, autant que la largeur en permet (une sur téléphone, où
+  l'on glisse d'un jour à l'autre), un bandeau des jours du séjour au-dessus.
+  Chaque événement a sa catégorie (vie quotidienne, arrivée ou départ,
+  imprévu, activité) et sa couleur ; une série se répète certains jours de
+  la semaine, et un jour peut s'en écarter (modifié ou annulé). Les jours
+  vivent à minuit UTC, les heures sont celles du séjour (`ClockTime`), sans
+  fuseau ; l'app déplie elle-même les séries (`CalendarEntry.occurrences`).
+  La **direction** ajoute, modifie (un jour seulement ou toute la série),
+  annule, rétablit et supprime ; elle voit les jours annulés, barrés. Un
+  **animateur** ne modifie rien : depuis le bouton « Proposer » ou un
+  événement, il propose un ajout, un changement ou une annulation, avec un
+  mot ; il suit ses propositions dans « Mes suggestions » et retire celles
+  qui attendent. La direction voit toutes les suggestions (le nombre en
+  attente sur l'onglet), les accepte — un ajout ou un changement s'ouvre
+  dans l'éditeur, pour l'ajuster — ou les refuse en répondant. Le bouton
+  d'agenda de la barre donne le **lien d'abonnement** personnel
+  (`webcal://` pour iPhone et Mac, Google Agenda, ou copié), régénérable ;
+  `url_launcher` ouvre les deux premiers. En mémoire,
+  `InMemoryCalendarRepository` rejoue les règles de l'API, avec un été 2027
+  rempli (journée type, arrivées et départs, activités, un imprévu) et deux
+  suggestions de Sacha Bernard.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on
   touche le `BackButton`.

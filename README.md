@@ -37,7 +37,9 @@ L'app s'ouvre sur la connexion par numéro de mobile + code reçu par SMS.
   l'administration (Séjours → l'été 2027). S'y nommer adjoint
   (06 12 34 56 78) le fait apparaître parmi ses séjours. Ses nouvelles (module
   Nouvelles) ont déjà quelques photos et journées : une publiée, une
-  programmée, un brouillon.
+  programmée, un brouillon ; son calendrier (module Calendrier) a une journée
+  type, des arrivées et départs, des activités et deux suggestions en
+  attente.
 - **Contre l'API** (`lecoteaufleuri/api`) : passer son origine à la compilation.
 
   ```sh

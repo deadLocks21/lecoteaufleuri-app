@@ -51,4 +51,18 @@ abstract final class ApiEndpoints {
   static String stayDayPublication(String id, String dayId) =>
       '${stayDay(id, dayId)}/publication';
   static String stayNews(String id) => '${stay(id)}/news';
+
+  /// Le calendrier d'un séjour : ses événements, leurs occurrences, les
+  /// suggestions de l'équipe et le lien d'abonnement du compte.
+  static String stayCalendar(String id) => '${stay(id)}/calendar';
+  static String stayCalendarEntries(String id) => '${stayCalendar(id)}/entries';
+  static String stayCalendarEntry(String id, String entryId) =>
+      '${stayCalendarEntries(id)}/$entryId';
+  static String stayCalendarOccurrence(String id, String entryId, String day) =>
+      '${stayCalendarEntry(id, entryId)}/occurrences/$day';
+  static String stayCalendarSuggestions(String id) =>
+      '${stayCalendar(id)}/suggestions';
+  static String stayCalendarSuggestion(String id, String suggestionId) =>
+      '${stayCalendarSuggestions(id)}/$suggestionId';
+  static String stayCalendarFeed(String id) => '${stayCalendar(id)}/feed';
 }
