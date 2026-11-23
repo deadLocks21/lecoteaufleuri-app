@@ -38,8 +38,7 @@ class CalendarDaysPage extends ConsumerStatefulWidget {
   ConsumerState<CalendarDaysPage> createState() => _CalendarDaysPageState();
 }
 
-class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
-    with AutomaticKeepAliveClientMixin {
+class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage> {
   /// La largeur minimale d'un jour.
   static const _gridColumnWidth = 140.0;
   static const _stripItemWidth = 56.0;
@@ -78,10 +77,6 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
     _hours.dispose();
     super.dispose();
   }
-
-  /// Le jour affiché survit au passage par l'onglet des suggestions.
-  @override
-  bool get wantKeepAlive => true;
 
   static int _within(int value, int low, int high) =>
       math.max(low, math.min(high, value));
@@ -155,9 +150,11 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     final stay = widget.stay;
     final calendar = ref.watch(stayCalendarControllerProvider(stay.id));
+    final suggestions =
+        ref.watch(calendarSuggestionsControllerProvider(stay.id)).value ??
+        const <CalendarSuggestionDto>[];
     final today = _todayIndex;
 
     return Scaffold(
@@ -228,6 +225,7 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
                       stay: stay,
                       days: visible,
                       calendar: value,
+                      suggestions: suggestions,
                       direction: widget.direction,
                       scroll: _hours,
                       onRefresh: () => ref.refresh(

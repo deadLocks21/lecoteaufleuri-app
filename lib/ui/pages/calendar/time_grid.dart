@@ -11,6 +11,7 @@ import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/calendar_display.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/day_layout.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/occurrence_actions.dart';
+import 'package:lecoteaufleuri/ui/pages/calendar/suggestions.page.dart';
 
 /// Le décalage d'une occurrence posée sur une autre, par cran.
 const _nestIndent = 12.0;
@@ -31,12 +32,16 @@ const gridGutterWidth = 52.0;
 /// largeur. Ce qui dure toute la journée (ou plusieurs jours) est dans le
 /// bandeau du haut, sous le jour. Une ligne marque l'heure qu'il est.
 ///
+/// Les suggestions en attente s'y posent aussi, en transparence, à la
+/// place qu'elles prendraient : on les ouvre pour y répondre.
+///
 /// Choisir un créneau libre — un clic, ou un glisser au quart d'heure près —
 /// y ajoute un événement (la direction) ou en propose un (un animateur).
 class CalendarTimeGrid extends ConsumerWidget {
   final StayDto stay;
   final List<DateTime> days;
   final StayCalendarDto calendar;
+  final List<CalendarSuggestionDto> suggestions;
   final bool direction;
   final ScrollController scroll;
   final Future<void> Function() onRefresh;
@@ -47,6 +52,7 @@ class CalendarTimeGrid extends ConsumerWidget {
     required this.stay,
     required this.days,
     required this.calendar,
+    this.suggestions = const [],
     required this.direction,
     required this.scroll,
     required this.onRefresh,
@@ -56,16 +62,36 @@ class CalendarTimeGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final today = calendarDay(DateTime.now());
-    final byDay = {
-      for (final day in days) day: calendar.on(day, withCancelled: direction),
-    };
-    void open(CalendarOccurrenceDto occurrence) => showOccurrenceSheet(
-      context,
-      ref,
-      stay: stay,
-      occurrence: occurrence,
-      direction: direction,
-    );
+    // Ce que placent les suggestions, reconnu à l'occurrence même.
+    final suggestionOf =
+        Map<CalendarOccurrenceDto, CalendarSuggestionDto>.identity();
+    final byDay = <DateTime, List<CalendarOccurrenceDto>>{};
+    for (final day in days) {
+      final suggested = calendar.suggestedOn(day, suggestions);
+      for (final item in suggested) {
+        suggestionOf[item.occurrence] = item.suggestion;
+      }
+      byDay[day] = [
+        ...calendar.on(day, withCancelled: direction),
+        for (final item in suggested) item.occurrence,
+      ];
+    }
+    void open(CalendarOccurrenceDto occurrence) =>
+        switch (suggestionOf[occurrence]) {
+          final suggestion? => showSuggestionSheet(
+            context,
+            stay: stay,
+            suggestion: suggestion,
+            direction: direction,
+          ),
+          null => showOccurrenceSheet(
+            context,
+            ref,
+            stay: stay,
+            occurrence: occurrence,
+            direction: direction,
+          ),
+        };
 
     return Column(
       children: [
@@ -85,6 +111,7 @@ class CalendarTimeGrid extends ConsumerWidget {
                         if (!isTimedOn(occurrence, day)) occurrence,
                     ],
                     onOpen: open,
+                    suggestionOf: (occurrence) => suggestionOf[occurrence],
                   ),
                 ),
             ],
@@ -114,6 +141,8 @@ class CalendarTimeGrid extends ConsumerWidget {
                           ]),
                           isToday: day == today,
                           onOpen: open,
+                          suggestionOf: (occurrence) =>
+                              suggestionOf[occurrence],
                           onSlot: (start, end) => onSlot(day, start, end),
                         ),
                       ),
@@ -135,12 +164,14 @@ class _DayHeader extends StatelessWidget {
   final bool isToday;
   final List<CalendarOccurrenceDto> allDay;
   final ValueChanged<CalendarOccurrenceDto> onOpen;
+  final CalendarSuggestionDto? Function(CalendarOccurrenceDto) suggestionOf;
 
   const _DayHeader({
     required this.day,
     required this.isToday,
     required this.allDay,
     required this.onOpen,
+    required this.suggestionOf,
   });
 
   @override
@@ -195,6 +226,7 @@ class _DayHeader extends StatelessWidget {
             for (final occurrence in allDay)
               _AllDayChip(
                 occurrence: occurrence,
+                suggestion: suggestionOf(occurrence),
                 day: day,
                 onTap: () => onOpen(occurrence),
               ),
@@ -207,11 +239,13 @@ class _DayHeader extends StatelessWidget {
 
 class _AllDayChip extends StatelessWidget {
   final CalendarOccurrenceDto occurrence;
+  final CalendarSuggestionDto? suggestion;
   final DateTime day;
   final VoidCallback onTap;
 
   const _AllDayChip({
     required this.occurrence,
+    required this.suggestion,
     required this.day,
     required this.onTap,
   });
@@ -221,16 +255,27 @@ class _AllDayChip extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = categoryColors(theme.colorScheme, occurrence.category);
     final hours = displayHours(occurrence, day);
+    final suggestion = this.suggestion;
+    final title = suggestedTitle(suggestion, occurrence.title);
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Opacity(
         opacity: occurrence.cancelled ? 0.5 : 1,
         child: Material(
-          color: colors.background,
-          borderRadius: BorderRadius.circular(4),
+          color: suggestion == null
+              ? colors.background
+              : colors.background.withValues(alpha: _suggestedAlpha),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: suggestion == null
+                ? BorderSide.none
+                : BorderSide(color: colors.accent),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            key: Key('occurrence-${occurrence.entryId}'),
+            key: suggestion == null
+                ? Key('occurrence-${occurrence.entryId}')
+                : Key('suggested-${suggestion.id}'),
             onTap: onTap,
             child: Container(
               decoration: BoxDecoration(
@@ -240,14 +285,15 @@ class _AllDayChip extends StatelessWidget {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               child: Text(
-                hours == 'Toute la journée'
-                    ? occurrence.title
-                    : '${occurrence.title} · $hours',
+                hours == 'Toute la journée' ? title : '$title · $hours',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.foreground,
+                  color: suggestion == null
+                      ? colors.foreground
+                      : theme.colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
+                  fontStyle: suggestion == null ? null : FontStyle.italic,
                   decoration: occurrence.cancelled
                       ? TextDecoration.lineThrough
                       : null,
@@ -301,6 +347,7 @@ class _DayHours extends StatefulWidget {
   final List<PlacedOccurrence> placed;
   final bool isToday;
   final ValueChanged<CalendarOccurrenceDto> onOpen;
+  final CalendarSuggestionDto? Function(CalendarOccurrenceDto) suggestionOf;
   final void Function(ClockTime start, ClockTime end) onSlot;
 
   const _DayHours({
@@ -308,6 +355,7 @@ class _DayHours extends StatefulWidget {
     required this.placed,
     required this.isToday,
     required this.onOpen,
+    required this.suggestionOf,
     required this.onSlot,
   });
 
@@ -438,6 +486,7 @@ class _DayHoursState extends State<_DayHours> {
                     item.lanes,
                 child: _Block(
                   placed: item,
+                  suggestion: widget.suggestionOf(item.occurrence),
                   day: widget.day,
                   onTap: () => widget.onOpen(item.occurrence),
                 ),
@@ -531,10 +580,16 @@ class _HourLines extends CustomPainter {
 /// s'il y a la place.
 class _Block extends StatelessWidget {
   final PlacedOccurrence placed;
+  final CalendarSuggestionDto? suggestion;
   final DateTime day;
   final VoidCallback onTap;
 
-  const _Block({required this.placed, required this.day, required this.onTap});
+  const _Block({
+    required this.placed,
+    required this.suggestion,
+    required this.day,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -543,8 +598,14 @@ class _Block extends StatelessWidget {
     final colors = categoryColors(theme.colorScheme, occurrence.category);
     final cancelled = occurrence.cancelled;
     final compact = placed.end - placed.start < 30;
+    final suggestion = this.suggestion;
+    final title = suggestedTitle(suggestion, occurrence.title);
     final text = TextStyle(
-      color: colors.foreground,
+      // Sur le fond transparent d'une suggestion, la couleur du texte.
+      color: suggestion == null
+          ? colors.foreground
+          : theme.colorScheme.onSurface,
+      fontStyle: suggestion == null ? null : FontStyle.italic,
       decoration: cancelled ? TextDecoration.lineThrough : null,
     );
     final details = [
@@ -557,16 +618,25 @@ class _Block extends StatelessWidget {
       child: Opacity(
         opacity: cancelled ? 0.5 : 1,
         child: Material(
-          color: colors.background,
+          // Une suggestion, en transparence, cerclée de sa couleur.
+          color: suggestion == null
+              ? colors.background
+              : theme.colorScheme.surface.withValues(alpha: 0.85),
           // Un liseré de la couleur du fond : un bloc posé sur un autre s'en
           // détache.
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(6),
-            side: BorderSide(color: theme.colorScheme.surface),
+            side: BorderSide(
+              color: suggestion == null
+                  ? theme.colorScheme.surface
+                  : colors.accent,
+            ),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            key: Key('occurrence-${occurrence.entryId}'),
+            key: suggestion == null
+                ? Key('occurrence-${occurrence.entryId}')
+                : Key('suggested-${suggestion.id}'),
             onTap: onTap,
             child: Container(
               decoration: BoxDecoration(
@@ -584,7 +654,7 @@ class _Block extends StatelessWidget {
                   child: compact
                       // Moins d'une demi-heure : tout sur une ligne.
                       ? Text(
-                          '${occurrence.title} · ${displayHours(occurrence, day)}',
+                          '$title · ${displayHours(occurrence, day)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall
@@ -599,7 +669,7 @@ class _Block extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              occurrence.title,
+                              title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.labelMedium
@@ -623,6 +693,17 @@ class _Block extends StatelessWidget {
     );
   }
 }
+
+/// L'opacité du fond d'une suggestion à la journée.
+const _suggestedAlpha = 0.35;
+
+/// Le titre d'un bloc : tel quel, ou ce que propose une suggestion.
+String suggestedTitle(CalendarSuggestionDto? suggestion, String title) =>
+    switch (suggestion?.kind) {
+      null => title,
+      SuggestionKind.cancel => 'Annuler ? $title',
+      _ => 'Proposé : $title',
+    };
 
 /// La ligne de l'heure qu'il est, redessinée chaque minute.
 class _NowLine extends StatefulWidget {

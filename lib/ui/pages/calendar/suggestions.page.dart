@@ -13,12 +13,14 @@ import 'package:lecoteaufleuri/ui/pages/calendar/occurrence_actions.dart';
 import 'package:lecoteaufleuri/ui/pages/news/news_display.dart';
 
 /// Les suggestions du calendrier (cf. `ACCES.md`, « Calendrier du
-/// séjour ») :
+/// séjour »), ouvertes depuis le calendrier :
 /// - la direction les voit toutes, avec leur auteur, et les accepte (telles
 ///   quelles ou ajustées : le calendrier change) ou les refuse ;
 /// - un animateur voit les siennes et leur suite, et retire celles qui
 ///   attendent.
-class CalendarSuggestionsPage extends ConsumerWidget {
+///
+/// Celles qui attendent d'abord ; les autres, traitées, sur demande.
+class CalendarSuggestionsPage extends ConsumerStatefulWidget {
   final StayDto stay;
   final bool direction;
 
@@ -29,7 +31,18 @@ class CalendarSuggestionsPage extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CalendarSuggestionsPage> createState() =>
+      _CalendarSuggestionsPageState();
+}
+
+class _CalendarSuggestionsPageState
+    extends ConsumerState<CalendarSuggestionsPage> {
+  bool _showsDecided = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final stay = widget.stay;
+    final direction = widget.direction;
     final suggestions = ref.watch(
       calendarSuggestionsControllerProvider(stay.id),
     );
@@ -38,88 +51,158 @@ class CalendarSuggestionsPage extends ConsumerWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 700),
-        child: switch ((suggestions.value, suggestions.error)) {
-          (final List<CalendarSuggestionDto> list, _) => RefreshIndicator(
-            onRefresh: () => ref.refresh(
-              calendarSuggestionsControllerProvider(stay.id).future,
-            ),
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
-              children: [
-                Text(
-                  direction
-                      ? 'Ce que l\'équipe propose. Accepter met le calendrier '
-                            'à jour ; vous pouvez ajuster la proposition avant.'
-                      : 'Ce que vous avez proposé à la direction, et sa '
-                            'réponse. Proposez depuis le calendrier : le bouton '
-                            '« Proposer », ou un événement.',
-                  style: muted,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(direction ? 'Suggestions' : 'Mes suggestions'),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 700),
+          child: switch ((suggestions.value, suggestions.error)) {
+            (final List<CalendarSuggestionDto> list, _) => () {
+              final pending = [
+                for (final s in list)
+                  if (s.isPending) s,
+              ];
+              final decided = [
+                for (final s in list)
+                  if (!s.isPending) s,
+              ];
+              return RefreshIndicator(
+                onRefresh: () => ref.refresh(
+                  calendarSuggestionsControllerProvider(stay.id).future,
                 ),
-                const SizedBox(height: 16),
-                if (list.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Text(
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
+                  children: [
+                    Text(
                       direction
-                          ? 'Aucune suggestion pour l\'instant.'
-                          : 'Vous n\'avez encore rien proposé.',
-                      key: const Key('noSuggestions'),
-                      textAlign: TextAlign.center,
+                          ? 'Ce que l\'équipe propose et qui attend votre '
+                                'réponse. Accepter met le calendrier à jour ; '
+                                'vous pouvez ajuster la proposition avant.'
+                          : 'Ce que vous avez proposé et qui attend la '
+                                'réponse de la direction. Proposez depuis le '
+                                'calendrier : le bouton « Proposer », ou un '
+                                'événement.',
                       style: muted,
                     ),
-                  ),
-                for (final suggestion in list)
-                  _SuggestionCard(
-                    stay: stay,
-                    suggestion: suggestion,
-                    direction: direction,
-                  ),
-              ],
-            ),
-          ),
-          (_, final Object error) => Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  calendarErrorMessage(
-                    error is CalendarException
-                        ? error.code
-                        : CalendarErrorCode.unknown,
-                  ),
-                  textAlign: TextAlign.center,
+                    const SizedBox(height: 16),
+                    if (pending.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Text(
+                          'Aucune suggestion en attente.',
+                          key: const Key('noSuggestions'),
+                          textAlign: TextAlign.center,
+                          style: muted,
+                        ),
+                      ),
+                    for (final suggestion in pending)
+                      _SuggestionCard(
+                        stay: stay,
+                        suggestion: suggestion,
+                        direction: direction,
+                      ),
+                    if (decided.isNotEmpty) ...[
+                      Center(
+                        child: TextButton.icon(
+                          key: const Key('toggleDecided'),
+                          onPressed: () =>
+                              setState(() => _showsDecided = !_showsDecided),
+                          icon: Icon(
+                            _showsDecided
+                                ? Icons.expand_less
+                                : Icons.expand_more,
+                          ),
+                          label: Text(
+                            _showsDecided
+                                ? 'Masquer les suggestions traitées'
+                                : 'Afficher les suggestions traitées '
+                                      '(${decided.length})',
+                          ),
+                        ),
+                      ),
+                      if (_showsDecided)
+                        for (final suggestion in decided)
+                          _SuggestionCard(
+                            stay: stay,
+                            suggestion: suggestion,
+                            direction: direction,
+                          ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: () => ref.invalidate(
-                    calendarSuggestionsControllerProvider(stay.id),
+              );
+            }(),
+            (_, final Object error) => Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    calendarErrorMessage(
+                      error is CalendarException
+                          ? error.code
+                          : CalendarErrorCode.unknown,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  child: const Text('Réessayer'),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  OutlinedButton(
+                    onPressed: () => ref.invalidate(
+                      calendarSuggestionsControllerProvider(stay.id),
+                    ),
+                    child: const Text('Réessayer'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          _ => const CircularProgressIndicator(),
-        },
+            _ => const CircularProgressIndicator(),
+          },
+        ),
       ),
     );
   }
 }
+
+/// Une suggestion posée dans le calendrier, ouverte pour y répondre (la
+/// direction) ou la retirer (son auteur) ; la fiche se referme ensuite.
+Future<void> showSuggestionSheet(
+  BuildContext context, {
+  required StayDto stay,
+  required CalendarSuggestionDto suggestion,
+  required bool direction,
+}) => showModalBottomSheet<void>(
+  context: context,
+  showDragHandle: true,
+  isScrollControlled: true,
+  builder: (sheet) => SafeArea(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: _SuggestionCard(
+        stay: stay,
+        suggestion: suggestion,
+        direction: direction,
+        onDone: () => Navigator.of(sheet).pop(),
+      ),
+    ),
+  ),
+);
 
 class _SuggestionCard extends ConsumerWidget {
   final StayDto stay;
   final CalendarSuggestionDto suggestion;
   final bool direction;
 
+  /// Après une réponse, ou le retrait : la fiche qui la montre se referme.
+  final VoidCallback? onDone;
+
   const _SuggestionCard({
     required this.stay,
     required this.suggestion,
     required this.direction,
+    this.onDone,
   });
 
   /// Ce que propose la suggestion, en une ligne de titre.
@@ -280,6 +363,7 @@ class _SuggestionCard extends ConsumerWidget {
     if (!confirmed || !context.mounted) return;
     final error = await _controller(ref).withdraw(suggestion.id);
     if (context.mounted) _tell(context, error, 'Suggestion retirée.');
+    if (error == null) onDone?.call();
   }
 
   Future<void> _decline(BuildContext context, WidgetRef ref) async {
@@ -294,6 +378,7 @@ class _SuggestionCard extends ConsumerWidget {
       ref,
     ).decline(suggestion.id, response: response);
     if (context.mounted) _tell(context, error, 'Suggestion refusée.');
+    if (error == null) onDone?.call();
   }
 
   /// Une annulation se confirme ; un ajout ou un changement s'ouvre dans
@@ -318,6 +403,7 @@ class _SuggestionCard extends ConsumerWidget {
           'Suggestion acceptée : le calendrier est à jour.',
         );
       }
+      if (error == null) onDone?.call();
       return;
     }
 
@@ -347,6 +433,7 @@ class _SuggestionCard extends ConsumerWidget {
     );
     if (done == true && context.mounted) {
       _tell(context, null, 'Suggestion acceptée : le calendrier est à jour.');
+      onDone?.call();
     }
   }
 }

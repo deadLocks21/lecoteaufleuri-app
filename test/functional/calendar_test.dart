@@ -137,7 +137,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Petit-déjeuner'), findsWidgets);
-      expect(find.text('Mes suggestions'), findsOneWidget);
+      expect(find.byKey(const Key('suggestionsButton')), findsOneWidget);
 
       await tapKey(tester, 'addEntryButton');
       expect(find.text('Proposer un événement'), findsOneWidget);
@@ -150,9 +150,12 @@ void main() {
       await tapKey(tester, 'submitEntry');
 
       expect(find.text('Proposition envoyée à la direction.'), findsOneWidget);
+      // Pas au calendrier : posée dedans, en attente.
       expect(find.text('Grand jeu'), findsNothing);
+      expect(find.text('Proposé : Grand jeu'), findsOneWidget);
 
-      await tapKey(tester, 'suggestionsTab');
+      await tapKey(tester, 'suggestionsButton');
+      expect(find.text('Mes suggestions'), findsOneWidget);
       expect(find.text('Nouvel événement'), findsOneWidget);
       expect(find.byKey(const Key('status-pending')), findsOneWidget);
       expect(find.text('« Dans les bois ? »'), findsOneWidget);
@@ -161,6 +164,10 @@ void main() {
       await tapKey(tester, 'withdrawSuggestion');
       await tapKey(tester, 'confirmAction');
       expect(find.byKey(const Key('noSuggestions')), findsOneWidget);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Proposé : Grand jeu'), findsNothing);
     },
   );
 
@@ -184,7 +191,9 @@ void main() {
 
       await tapKey(tester, 'calendarModule');
       expect(find.text('Grand jeu'), findsNothing);
-      await tapKey(tester, 'suggestionsTab');
+      // La suggestion est posée dans le calendrier : on l'ouvre de là.
+      await tester.tap(find.text('Proposé : Grand jeu'));
+      await tester.pumpAndSettle();
       expect(find.textContaining('Par Sacha Bernard'), findsOneWidget);
 
       await tapKey(tester, 'acceptSuggestion');
@@ -194,10 +203,15 @@ void main() {
         find.text('Suggestion acceptée : le calendrier est à jour.'),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('status-accepted')), findsOneWidget);
-
-      await tapKey(tester, 'calendarTab');
+      // La fiche se referme sur le calendrier à jour.
       expect(find.text('Grand jeu'), findsOneWidget);
+      expect(find.text('Proposé : Grand jeu'), findsNothing);
+
+      // Traitée, elle ne se montre plus qu'à la demande.
+      await tapKey(tester, 'suggestionsButton');
+      expect(find.byKey(const Key('noSuggestions')), findsOneWidget);
+      await tapKey(tester, 'toggleDecided');
+      expect(find.byKey(const Key('status-accepted')), findsOneWidget);
     },
   );
 

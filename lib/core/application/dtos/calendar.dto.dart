@@ -260,6 +260,63 @@ class StayCalendarDto {
           CalendarOccurrenceDto.fromDomain(occurrence),
       ];
 
+  /// Ce que les [suggestions] en attente placeraient le jour [day] : un
+  /// ajout ou un changement, tel que proposé ; une annulation, sur ce
+  /// qu'elle annulerait.
+  List<SuggestedOccurrenceDto> suggestedOn(
+    DateTime day,
+    Iterable<CalendarSuggestionDto> suggestions,
+  ) => [
+    for (final suggestion in suggestions)
+      if (suggestion.isPending)
+        for (final occurrence in _suggestedOn(day, suggestion))
+          SuggestedOccurrenceDto(
+            suggestion: suggestion,
+            occurrence: occurrence,
+          ),
+  ];
+
+  List<CalendarOccurrenceDto> _suggestedOn(
+    DateTime day,
+    CalendarSuggestionDto suggestion,
+  ) {
+    final target = suggestion.occurrenceDay;
+    if (target != null && target != day) return const [];
+    // Tout un événement proposé : ses occurrences, à part du calendrier.
+    if (suggestion.entryProposal case final draft?) {
+      return StayCalendarDto([
+        CalendarEntryDto(
+          id: 'suggestion-${suggestion.id}',
+          draft: draft,
+          updatedAt: suggestion.createdAt,
+        ),
+      ]).on(day);
+    }
+    final current = [
+      for (final occurrence in on(day))
+        if (occurrence.entryId == suggestion.entryId) occurrence,
+    ];
+    // Une seule occurrence changée : la même, avec ce qui est proposé.
+    if (suggestion.occurrenceProposal case final draft?) {
+      return [
+        for (final occurrence in current)
+          CalendarOccurrenceDto(
+            entryId: 'suggestion-${suggestion.id}',
+            category: occurrence.category,
+            title: draft.title,
+            place: draft.place,
+            notes: draft.notes,
+            startsOn: day,
+            endsOn: day,
+            startTime: draft.startTime,
+            endTime: draft.endTime,
+            recurring: occurrence.recurring,
+          ),
+      ];
+    }
+    return current;
+  }
+
   /// Le même calendrier, [entry] ajouté ou remplacé.
   StayCalendarDto withEntry(CalendarEntryDto entry) => StayCalendarDto(
     [
@@ -283,6 +340,17 @@ class StayCalendarDto {
     );
     return byTime != 0 ? byTime : a.draft.title.compareTo(b.draft.title);
   }
+}
+
+/// Une occurrence que placerait une suggestion en attente.
+class SuggestedOccurrenceDto {
+  final CalendarSuggestionDto suggestion;
+  final CalendarOccurrenceDto occurrence;
+
+  const SuggestedOccurrenceDto({
+    required this.suggestion,
+    required this.occurrence,
+  });
 }
 
 /// Une suggestion, telle que l'UI l'affiche : à la direction pour qu'elle

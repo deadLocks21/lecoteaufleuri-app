@@ -10,11 +10,12 @@ import 'package:lecoteaufleuri/ui/pages/stays/stay_modules.dart';
 import 'package:lecoteaufleuri/ui/pages/stays/stay_space_view.dart';
 import 'package:lecoteaufleuri/ui/shell/app_shell.dart';
 
-/// Le module Calendrier d'un séjour, en deux onglets (cf. `ACCES.md`,
-/// « Calendrier du séjour ») : le calendrier, jour par jour, et les
-/// suggestions — toutes pour la direction (et l'admin), qui les tranche ;
-/// les siennes pour un animateur. L'abonnement depuis un agenda est dans la
-/// barre, pour toute l'équipe.
+/// Le module Calendrier d'un séjour (cf. `ACCES.md`, « Calendrier du
+/// séjour ») : le calendrier, jour par jour, avec les suggestions en
+/// attente posées dedans. Dans la barre, pour toute l'équipe : les
+/// suggestions qui attendent — toutes pour la direction (et l'admin), qui
+/// les tranche ; les siennes pour un animateur — et l'abonnement depuis un
+/// agenda.
 class StayCalendarPage extends ConsumerWidget {
   final String stayId;
 
@@ -30,42 +31,36 @@ class StayCalendarPage extends ConsumerWidget {
       stayId: stayId,
       builder: (context, space) {
         final direction = isDirection(space, isAdmin: isAdmin);
-        return DefaultTabController(
-          // Un autre rôle (droits relus) repart du premier onglet.
-          key: ValueKey(direction),
-          length: 2,
-          child: Scaffold(
-            appBar: AppBar(
-              automaticallyImplyLeading: showsBack,
-              title: const Text('Calendrier'),
-              actions: [
-                IconButton(
-                  key: const Key('subscribeButton'),
-                  tooltip: 'Voir dans mon agenda',
-                  icon: const Icon(Icons.event_repeat_outlined),
-                  onPressed: () => showCalendarSubscribeSheet(context, stayId),
-                ),
-              ],
-              bottom: TabBar(
-                tabs: [
-                  const Tab(key: Key('calendarTab'), text: 'Calendrier'),
-                  Tab(
-                    key: const Key('suggestionsTab'),
-                    child: _SuggestionsTabLabel(
-                      stayId: stayId,
-                      label: direction ? 'Suggestions' : 'Mes suggestions',
-                      countsPending: direction,
+        return Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: showsBack,
+            title: const Text('Calendrier'),
+            actions: [
+              _SuggestionsButton(
+                stayId: stayId,
+                direction: direction,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => CalendarSuggestionsPage(
+                      stay: space.stay,
+                      direction: direction,
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-            body: TabBarView(
-              children: [
-                CalendarDaysPage(stay: space.stay, direction: direction),
-                CalendarSuggestionsPage(stay: space.stay, direction: direction),
-              ],
-            ),
+              IconButton(
+                key: const Key('subscribeButton'),
+                tooltip: 'Voir dans mon agenda',
+                icon: const Icon(Icons.event_repeat_outlined),
+                onPressed: () => showCalendarSubscribeSheet(context, stayId),
+              ),
+            ],
+          ),
+          body: CalendarDaysPage(
+            // Un autre rôle (droits relus) repart d'un calendrier neuf.
+            key: ValueKey(direction),
+            stay: space.stay,
+            direction: direction,
           ),
         );
       },
@@ -73,35 +68,39 @@ class StayCalendarPage extends ConsumerWidget {
   }
 }
 
-/// Le titre de l'onglet des suggestions, avec, pour la direction, le nombre
-/// de celles qui attendent sa réponse.
-class _SuggestionsTabLabel extends ConsumerWidget {
+/// Le bouton des suggestions, avec le nombre de celles qui attendent une
+/// réponse.
+class _SuggestionsButton extends ConsumerWidget {
   final String stayId;
-  final String label;
-  final bool countsPending;
+  final bool direction;
+  final VoidCallback onPressed;
 
-  const _SuggestionsTabLabel({
+  const _SuggestionsButton({
     required this.stayId,
-    required this.label,
-    required this.countsPending,
+    required this.direction,
+    required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Écoutées tant que le module est ouvert : une suggestion envoyée depuis
-    // le calendrier trouve la liste prête, et l'onglet se met à jour.
+    // Écoutées tant que le module est ouvert : le calendrier les montre, et
+    // le nombre se met à jour.
     final suggestions = ref.watch(
       calendarSuggestionsControllerProvider(stayId),
     );
-    final pending = countsPending
-        ? suggestions.value?.where((s) => s.isPending).length ?? 0
-        : 0;
-    return Badge(
-      key: const Key('pendingSuggestions'),
-      isLabelVisible: pending > 0,
-      label: Text('$pending'),
-      offset: const Offset(14, -6),
-      child: Text(label),
+    final pending = suggestions.value?.where((s) => s.isPending).length ?? 0;
+    return IconButton(
+      key: const Key('suggestionsButton'),
+      tooltip: direction
+          ? 'Suggestions en attente'
+          : 'Mes suggestions en attente',
+      onPressed: onPressed,
+      icon: Badge(
+        key: const Key('pendingSuggestions'),
+        isLabelVisible: pending > 0,
+        label: Text('$pending'),
+        child: const Icon(Icons.lightbulb_outline),
+      ),
     );
   }
 }
