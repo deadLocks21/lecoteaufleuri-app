@@ -12,6 +12,9 @@ import 'package:lecoteaufleuri/ui/pages/calendar/calendar_display.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/day_layout.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/occurrence_actions.dart';
 
+/// Le décalage d'une occurrence posée sur une autre, par cran.
+const _nestIndent = 12.0;
+
 /// La hauteur d'une heure dans la grille.
 const gridHourHeight = 56.0;
 
@@ -413,8 +416,13 @@ class _DayHoursState extends State<_DayHours> {
               Positioned(
                 top: item.start / 60 * gridHourHeight,
                 height: (item.end - item.start) / 60 * gridHourHeight,
-                left: 2 + item.lane * (width - 4) / item.lanes,
-                width: (width - 4) / item.lanes,
+                left:
+                    2 +
+                    item.indent * _nestIndent +
+                    item.lane *
+                        (width - 4 - item.indent * _nestIndent) /
+                        item.lanes,
+                width: (width - 4 - item.indent * _nestIndent) / item.lanes,
                 child: _Block(
                   placed: item,
                   day: widget.day,
@@ -537,7 +545,12 @@ class _Block extends StatelessWidget {
         opacity: cancelled ? 0.5 : 1,
         child: Material(
           color: colors.background,
-          borderRadius: BorderRadius.circular(6),
+          // Un liseré de la couleur du fond : un bloc posé sur un autre s'en
+          // détache.
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(color: theme.colorScheme.surface),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             key: Key('occurrence-${occurrence.entryId}'),

@@ -8,13 +8,16 @@ const minutesPerDay = 24 * 60;
 
 /// Une occurrence placée dans les heures d'un jour : de [start] à [end]
 /// (minutes depuis minuit, [end] allongée jusqu'à la durée minimale d'un
-/// bloc), dans la voie [lane] sur [lanes] qui se partagent la largeur.
+/// bloc), dans la voie [lane] sur [lanes] qui se partagent la largeur, et
+/// décalée de [indent] crans quand elle se pose sur une plus longue,
+/// commencée avant elle.
 class PlacedOccurrence {
   final CalendarOccurrenceDto occurrence;
   final int start;
   final int end;
   final int lane;
   final int lanes;
+  final int indent;
 
   const PlacedOccurrence({
     required this.occurrence,
@@ -22,6 +25,7 @@ class PlacedOccurrence {
     required this.end,
     required this.lane,
     required this.lanes,
+    this.indent = 0,
   });
 }
 
@@ -33,11 +37,28 @@ bool isTimedOn(CalendarOccurrenceDto occurrence, DateTime day) =>
     !occurrence.spansSeveralDays &&
     occurrence.startsOn == day;
 
-/// Place les occurrences avec heure d'un jour, comme Google Agenda : chacune
-/// à son heure, aussi haute que sa durée (au moins [minimumMinutes] : un
-/// lever ou un coucher sans heure de fin tient un quart d'heure, sans
-/// empiéter sur ce qui commence juste après), et celles qui se chevauchent
-/// côte à côte, la largeur partagée entre elles.
+/// En deçà de cet écart entre leurs débuts, deux occurrences qui se
+/// chevauchent se mettent côte à côte : sinon, la seconde se poserait sur le
+/// titre de la première.
+const sideBySideMinutes = 30;
+
+/// Au-delà de ces crans, une occurrence ne se décale plus : elle garderait
+/// trop peu de largeur.
+const maxIndent = 3;
+
+/// Place les occurrences avec heure d'un jour, comme Google Agenda :
+///
+/// - chacune à son heure, aussi haute que sa durée (au moins
+///   [minimumMinutes] : un lever ou un coucher sans heure de fin tient un
+///   quart d'heure, sans empiéter sur ce qui commence juste après) ;
+/// - celles qui commencent presque ensemble (moins de [sideBySideMinutes]
+///   d'écart) et se chevauchent, côte à côte, la largeur partagée ;
+/// - une qui commence plus tard, pendant une autre, se pose par-dessus,
+///   décalée d'un cran ([PlacedOccurrence.indent]) : la plus longue garde
+///   toute sa largeur, son titre et sa marge restent visibles.
+///
+/// Le résultat se dessine dans l'ordre : chaque occurrence par-dessus celles
+/// sur lesquelles elle se pose.
 List<PlacedOccurrence> layoutDay(
   Iterable<CalendarOccurrenceDto> occurrences, {
   int minimumMinutes = 15,
@@ -62,49 +83,75 @@ List<PlacedOccurrence> layoutDay(
         // À même heure, la plus longue d'abord : elle prend la première voie.
         return byStart != 0 ? byStart : b.end.compareTo(a.end);
       });
+  final count = timed.length;
 
-  final placed = <PlacedOccurrence>[];
-  // Un groupe : des occurrences qui se chevauchent de proche en proche.
-  var group =
-      <({CalendarOccurrenceDto occurrence, int start, int end, int lane})>[];
-  final laneEnds = <int>[];
-  var groupEnd = -1;
-
-  void close() {
-    for (final item in group) {
-      placed.add(
-        PlacedOccurrence(
-          occurrence: item.occurrence,
-          start: item.start,
-          end: item.end,
-          lane: item.lane,
-          lanes: laneEnds.length,
-        ),
-      );
+  // Les groupes côte à côte : reliés de proche en proche par deux
+  // occurrences qui se chevauchent en commençant presque ensemble.
+  final parent = List<int>.generate(count, (i) => i);
+  int root(int i) => parent[i] == i ? i : parent[i] = root(parent[i]);
+  bool overlap(int earlier, int later) =>
+      timed[later].start < timed[earlier].end;
+  for (var later = 0; later < count; later++) {
+    for (var earlier = 0; earlier < later; earlier++) {
+      if (overlap(earlier, later) &&
+          timed[later].start - timed[earlier].start < sideBySideMinutes) {
+        parent[root(later)] = root(earlier);
+      }
     }
-    group = [];
-    laneEnds.clear();
+  }
+  final groups = <int, List<int>>{};
+  for (var i = 0; i < count; i++) {
+    groups.putIfAbsent(root(i), () => []).add(i);
   }
 
-  for (final item in timed) {
-    if (group.isNotEmpty && item.start >= groupEnd) close();
-    var lane = laneEnds.indexWhere((end) => end <= item.start);
-    if (lane < 0) {
-      lane = laneEnds.length;
-      laneEnds.add(item.end);
-    } else {
-      laneEnds[lane] = item.end;
+  // Dans l'ordre de leur début : un groupe se pose sur ceux, commencés
+  // avant, qui durent encore quand l'un des siens commence.
+  final depth = <int, int>{};
+  final lanesOf = <int, ({int lane, int lanes})>{};
+  for (final MapEntry(key: group, value: members) in groups.entries) {
+    var level = 0;
+    for (final member in members) {
+      for (var earlier = 0; earlier < member; earlier++) {
+        final other = depth[root(earlier)];
+        if (other != null &&
+            root(earlier) != group &&
+            overlap(earlier, member)) {
+          level = math.max(level, other + 1);
+        }
+      }
     }
-    groupEnd = group.isEmpty ? item.end : math.max(groupEnd, item.end);
-    group.add((
-      occurrence: item.occurrence,
-      start: item.start,
-      end: item.end,
-      lane: lane,
-    ));
+    depth[group] = level;
+
+    final laneEnds = <int>[];
+    for (final member in members) {
+      var lane = laneEnds.indexWhere((end) => end <= timed[member].start);
+      if (lane < 0) {
+        lane = laneEnds.length;
+        laneEnds.add(timed[member].end);
+      } else {
+        laneEnds[lane] = timed[member].end;
+      }
+      lanesOf[member] = (lane: lane, lanes: 0);
+    }
+    for (final member in members) {
+      lanesOf[member] = (lane: lanesOf[member]!.lane, lanes: laneEnds.length);
+    }
   }
-  close();
-  return placed;
+
+  return [
+    for (var i = 0; i < count; i++)
+      PlacedOccurrence(
+        occurrence: timed[i].occurrence,
+        start: timed[i].start,
+        end: timed[i].end,
+        lane: lanesOf[i]!.lane,
+        lanes: lanesOf[i]!.lanes,
+        indent: math.min(maxIndent, depth[root(i)]!),
+      ),
+  ]..sort((a, b) {
+    final byIndent = a.indent.compareTo(b.indent);
+    return byIndent != 0 ? byIndent : a.start.compareTo(b.start);
+  });
 }
 
 /// La précision d'un créneau choisi dans la grille : le quart d'heure.
