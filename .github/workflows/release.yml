@@ -14,10 +14,12 @@
 #                       publier (que des chore:/docs:…) → tout le reste est sauté.
 #      check            flutter analyze + flutter test, à chaque push.
 #   2) build-android    AAB (Play Store) + APK universel (sideload), signés.
+#                       — DÉSACTIVÉ (commenté), comme Windows, Linux et
+#                       publish-android : seuls iOS et macOS tournent.
 #      build-ios        IPA signé App Store.
 #      build-macos      .pkg signé Mac App Store.
-#      build-windows    .zip autonome du dossier Release.
-#      build-linux      AppImage x86_64.
+#      build-windows    .zip autonome du dossier Release. — DÉSACTIVÉ
+#      build-linux      AppImage x86_64. — DÉSACTIVÉ
 #      Version injectée par --build-name (pubspec.yaml n'est jamais bumpé) ;
 #      tout reste en artifact.
 #   3) build-gate       Sentinelle : TOUS les builds doivent être verts.
@@ -29,7 +31,7 @@
 #   5) release          GitHub Release, changelog semantic-release. Assets :
 #                       uniquement ce qu'un utilisateur peut installer (APK,
 #                       .zip Windows, AppImage) — ni l'AAB, ni l'IPA, ni le .pkg.
-#   6) publish-android  Play Store, piste "internal".
+#   6) publish-android  Play Store, piste "internal". — DÉSACTIVÉ
 #      publish-ios      TestFlight (testeurs internes, sans review).
 #      publish-macos    TestFlight macOS (testeurs internes, sans review).
 #      Un échec ici ne remet pas le tag en cause (les binaires existent) :
@@ -40,6 +42,8 @@
 #                                        write_repository, rôle Maintainer) :
 #                                        semantic-release lit les tags de
 #                                        lecoteaufleuri/app et y pousse vX.Y.Z
+#   (Android désactivé : les 5 secrets ANDROID_* / GCLOUD_* ne servent pas
+#   tant que build-android et publish-android sont commentés.)
 #   ANDROID_KEYSTORE_BASE64              keystore upload (.jks) encodé base64
 #   ANDROID_KEYSTORE_PASSWORD            mot de passe du keystore
 #   ANDROID_KEY_ALIAS                    alias de la clé
@@ -53,9 +57,8 @@
 #   MAC_INSTALLER_CERTIFICATE_PASSWORD   mot de passe du .p12 installer
 #
 # Variable requise (même écran, onglet « Variables ») :
-#   APP_STORE_APPLE_ID                   Apple ID (numérique) de l'app dans App
-#                                        Store Connect — une seule fiche iOS +
-#                                        macOS (Universal Purchase, même bundle).
+#   API_BASE_URL                         origine HTTPS de l'API de prod
+# (APP_STORE_APPLE_ID est écrit en dur dans `env`, plus bas.)
 #
 # Pré-requis Play Console : l'app `com.lecoteaufleuri.app` doit exister et un
 # premier AAB peut devoir être uploadé à la main avant que l'API accepte les
@@ -84,6 +87,9 @@ env:
   # Source unique de la version Flutter pour tous les jobs.
   FLUTTER_VERSION: "3.41.7"
   BUNDLE_ID: "com.lecoteaufleuri.app"
+  # Apple ID de l'app dans App Store Connect : une seule fiche iOS + macOS
+  # (Universal Purchase, même bundle). Public, d'où sa place ici.
+  APP_STORE_APPLE_ID: "6838406742"
   # Origine de l'API de prod (variable GitHub, ex. https://api.example.org),
   # injectée dans chaque build par --dart-define. Sans elle, l'app tournerait
   # en mode démo en mémoire : le job `version` refuse alors de publier.
@@ -162,101 +168,106 @@ jobs:
   # BUILDS — Compilation + signature + upload artifact (pas de publish)
   # ═══════════════════════════════════════════════════════════════════════
 
-  build-android:
-    name: Build Android (${{ needs.version.outputs.version }})
-    needs: [version, check]
-    if: needs.version.outputs.version != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  # ─── DÉSACTIVÉ ─────────────────────────────────────────────────────────
+  # Android, Windows et Linux sont mis de côté pour l'instant : seuls iOS et
+  # macOS (TestFlight) sont construits et publiés. Pour en réactiver un,
+  # décommenter son job, le remettre dans `needs` de build-gate, et (pour
+  # Android / Windows / Linux) le téléchargement des assets dans `release`.
+  # build-android:
+  #   name: Build Android (${{ needs.version.outputs.version }})
+  #   needs: [version, check]
+  #   if: needs.version.outputs.version != ''
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
 
-    env:
-      GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
-      VERSION: ${{ needs.version.outputs.version }}
+  #   env:
+  #     GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
+  #     VERSION: ${{ needs.version.outputs.version }}
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Setup Java (Temurin 17)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
+  #     - name: Setup Java (Temurin 17)
+  #       uses: actions/setup-java@v4
+  #       with:
+  #         distribution: temurin
+  #         java-version: "17"
+  #         cache: gradle
 
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+  #     - uses: subosito/flutter-action@v2
+  #       with:
+  #         flutter-version: ${{ env.FLUTTER_VERSION }}
+  #         channel: stable
+  #         cache: true
 
-      - name: Setup Python (requis par codemagic-cli-tools)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+  #     - name: Setup Python (requis par codemagic-cli-tools)
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
 
-      - name: Install codemagic-cli-tools
-        run: pip install codemagic-cli-tools
+  #     - name: Install codemagic-cli-tools
+  #       run: pip install codemagic-cli-tools
 
-      - name: Décoder le keystore upload
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/android/upload-keystore.jks"
+  #     - name: Décoder le keystore upload
+  #       env:
+  #         KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+  #       run: |
+  #         echo "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/android/upload-keystore.jks"
 
-      - name: Écrire android/key.properties
-        # Lu par android/app/build.gradle.kts pour signer le build release.
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: |
-          cat > "$GITHUB_WORKSPACE/android/key.properties" <<EOF
-          storePassword=$KEYSTORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          storeFile=$GITHUB_WORKSPACE/android/upload-keystore.jks
-          EOF
+  #     - name: Écrire android/key.properties
+  #       # Lu par android/app/build.gradle.kts pour signer le build release.
+  #       env:
+  #         KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+  #         KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+  #         KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+  #       run: |
+  #         cat > "$GITHUB_WORKSPACE/android/key.properties" <<EOF
+  #         storePassword=$KEYSTORE_PASSWORD
+  #         keyPassword=$KEY_PASSWORD
+  #         keyAlias=$KEY_ALIAS
+  #         storeFile=$GITHUB_WORKSPACE/android/upload-keystore.jks
+  #         EOF
 
-      - run: flutter pub get
+  #     - run: flutter pub get
 
-      - name: Compute build number from Google Play
-        id: build-number
-        run: |
-          LATEST_BUILD=$(google-play get-latest-build-number \
-            --package-name "$BUNDLE_ID" \
-            --credentials "@env:GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" \
-            --tracks production beta alpha internal 2>/dev/null || echo 0)
-          BUILD_NUMBER=$((${LATEST_BUILD:-0} + 1))
-          echo "Next Android build number: $BUILD_NUMBER"
-          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+  #     - name: Compute build number from Google Play
+  #       id: build-number
+  #       run: |
+  #         LATEST_BUILD=$(google-play get-latest-build-number \
+  #           --package-name "$BUNDLE_ID" \
+  #           --credentials "@env:GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" \
+  #           --tracks production beta alpha internal 2>/dev/null || echo 0)
+  #         BUILD_NUMBER=$((${LATEST_BUILD:-0} + 1))
+  #         echo "Next Android build number: $BUILD_NUMBER"
+  #         echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Build App Bundle (.aab)
-        run: |
-          flutter build appbundle --release \
-            --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --build-name="$VERSION" \
-            --build-number="${{ steps.build-number.outputs.build_number }}"
+  #     - name: Build App Bundle (.aab)
+  #       run: |
+  #         flutter build appbundle --release \
+  #           --dart-define=API_BASE_URL="$API_BASE_URL" \
+  #           --build-name="$VERSION" \
+  #           --build-number="${{ steps.build-number.outputs.build_number }}"
 
-      - name: Build APK universel (.apk)
-        # Attaché à la GitHub Release pour l'install directe / sideload. Le Play
-        # Store reçoit l'AAB (cf. publish-android).
-        run: |
-          flutter build apk --release \
-            --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --build-name="$VERSION" \
-            --build-number="${{ steps.build-number.outputs.build_number }}"
-          mv build/app/outputs/flutter-apk/app-release.apk \
-            "build/app/outputs/flutter-apk/lecoteaufleuri-android-$VERSION.apk"
+  #     - name: Build APK universel (.apk)
+  #       # Attaché à la GitHub Release pour l'install directe / sideload. Le Play
+  #       # Store reçoit l'AAB (cf. publish-android).
+  #       run: |
+  #         flutter build apk --release \
+  #           --dart-define=API_BASE_URL="$API_BASE_URL" \
+  #           --build-name="$VERSION" \
+  #           --build-number="${{ steps.build-number.outputs.build_number }}"
+  #         mv build/app/outputs/flutter-apk/app-release.apk \
+  #           "build/app/outputs/flutter-apk/lecoteaufleuri-android-$VERSION.apk"
 
-      - name: Upload AAB + APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lecoteaufleuri-android
-          path: |
-            build/app/outputs/bundle/release/*.aab
-            build/app/outputs/flutter-apk/lecoteaufleuri-android-*.apk
-          retention-days: 14
-          if-no-files-found: error
+  #     - name: Upload AAB + APK artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: lecoteaufleuri-android
+  #         path: |
+  #           build/app/outputs/bundle/release/*.aab
+  #           build/app/outputs/flutter-apk/lecoteaufleuri-android-*.apk
+  #         retention-days: 14
+  #         if-no-files-found: error
 
   build-ios:
     name: Build iOS (${{ needs.version.outputs.version }})
@@ -270,7 +281,6 @@ jobs:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
       CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
-      APP_STORE_APPLE_ID: ${{ vars.APP_STORE_APPLE_ID }}
       VERSION: ${{ needs.version.outputs.version }}
 
     steps:
@@ -331,7 +341,6 @@ jobs:
       - name: Compute build number from App Store Connect (iOS)
         id: build-number
         run: |
-          : "${APP_STORE_APPLE_ID:?Variable GitHub APP_STORE_APPLE_ID manquante (Settings → Secrets and variables → Actions → Variables)}"
           LATEST_BUILD=$(app-store-connect get-latest-build-number \
             "$APP_STORE_APPLE_ID" \
             --platform IOS)
@@ -369,7 +378,6 @@ jobs:
       CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
       MAC_INSTALLER_CERTIFICATE_P12_BASE64: ${{ secrets.MAC_INSTALLER_CERTIFICATE_P12_BASE64 }}
       MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
-      APP_STORE_APPLE_ID: ${{ vars.APP_STORE_APPLE_ID }}
       VERSION: ${{ needs.version.outputs.version }}
 
     steps:
@@ -454,7 +462,6 @@ jobs:
         # Universal Purchase.
         id: build-number
         run: |
-          : "${APP_STORE_APPLE_ID:?Variable GitHub APP_STORE_APPLE_ID manquante (Settings → Secrets and variables → Actions → Variables)}"
           LATEST_BUILD=$(app-store-connect get-latest-build-number \
             "$APP_STORE_APPLE_ID" \
             --platform MAC_OS)
@@ -512,153 +519,158 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-  build-windows:
-    name: Build Windows (${{ needs.version.outputs.version }})
-    needs: [version, check]
-    if: needs.version.outputs.version != ''
-    runs-on: windows-latest
-    timeout-minutes: 30
+  # ─── DÉSACTIVÉ ─────────────────────────────────────────────────────────
+  # Android, Windows et Linux sont mis de côté pour l'instant : seuls iOS et
+  # macOS (TestFlight) sont construits et publiés. Pour en réactiver un,
+  # décommenter son job, le remettre dans `needs` de build-gate, et (pour
+  # Android / Windows / Linux) le téléchargement des assets dans `release`.
+  # build-windows:
+  #   name: Build Windows (${{ needs.version.outputs.version }})
+  #   needs: [version, check]
+  #   if: needs.version.outputs.version != ''
+  #   runs-on: windows-latest
+  #   timeout-minutes: 30
 
-    env:
-      VERSION: ${{ needs.version.outputs.version }}
+  #   env:
+  #     VERSION: ${{ needs.version.outputs.version }}
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+  #     - uses: subosito/flutter-action@v2
+  #       with:
+  #         flutter-version: ${{ env.FLUTTER_VERSION }}
+  #         channel: stable
+  #         cache: true
 
-      - name: Enable Windows desktop support
-        run: flutter config --enable-windows-desktop
+  #     - name: Enable Windows desktop support
+  #       run: flutter config --enable-windows-desktop
 
-      - run: flutter pub get
+  #     - run: flutter pub get
 
-      - name: Build Windows release
-        shell: pwsh
-        run: |
-          flutter build windows --release `
-            --dart-define=API_BASE_URL="$env:API_BASE_URL" `
-            --build-name="$env:VERSION" `
-            --build-number="${{ github.run_number }}"
+  #     - name: Build Windows release
+  #       shell: pwsh
+  #       run: |
+  #         flutter build windows --release `
+  #           --dart-define=API_BASE_URL="$env:API_BASE_URL" `
+  #           --build-name="$env:VERSION" `
+  #           --build-number="${{ github.run_number }}"
 
-      - name: Zip Windows build output
-        # Le .exe dépend des DLL Flutter et du dossier `data/` côte à côte
-        # → on zippe tout le dossier Release pour une archive autonome.
-        shell: pwsh
-        run: |
-          $zipName = "lecoteaufleuri-windows-$env:VERSION.zip"
-          $sourceDir = "build/windows/x64/runner/Release"
-          if (-not (Test-Path $sourceDir)) {
-            Write-Error "Build output directory not found: $sourceDir"
-            exit 1
-          }
-          Compress-Archive -Path "$sourceDir/*" -DestinationPath $zipName
-          "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
+  #     - name: Zip Windows build output
+  #       # Le .exe dépend des DLL Flutter et du dossier `data/` côte à côte
+  #       # → on zippe tout le dossier Release pour une archive autonome.
+  #       shell: pwsh
+  #       run: |
+  #         $zipName = "lecoteaufleuri-windows-$env:VERSION.zip"
+  #         $sourceDir = "build/windows/x64/runner/Release"
+  #         if (-not (Test-Path $sourceDir)) {
+  #           Write-Error "Build output directory not found: $sourceDir"
+  #           exit 1
+  #         }
+  #         Compress-Archive -Path "$sourceDir/*" -DestinationPath $zipName
+  #         "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lecoteaufleuri-windows
-          path: ${{ env.ZIP_NAME }}
-          retention-days: 14
-          if-no-files-found: error
+  #     - name: Upload Windows artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: lecoteaufleuri-windows
+  #         path: ${{ env.ZIP_NAME }}
+  #         retention-days: 14
+  #         if-no-files-found: error
 
-  build-linux:
-    name: Build Linux (${{ needs.version.outputs.version }})
-    needs: [version, check]
-    if: needs.version.outputs.version != ''
-    # ubuntu-22.04 (glibc 2.35) plutôt que ubuntu-latest (24.04 / glibc 2.39)
-    # pour rester compatible avec des distros utilisateur un peu plus anciennes.
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
+  # build-linux:
+  #   name: Build Linux (${{ needs.version.outputs.version }})
+  #   needs: [version, check]
+  #   if: needs.version.outputs.version != ''
+  #   # ubuntu-22.04 (glibc 2.35) plutôt que ubuntu-latest (24.04 / glibc 2.39)
+  #   # pour rester compatible avec des distros utilisateur un peu plus anciennes.
+  #   runs-on: ubuntu-22.04
+  #   timeout-minutes: 30
 
-    env:
-      VERSION: ${{ needs.version.outputs.version }}
+  #   env:
+  #     VERSION: ${{ needs.version.outputs.version }}
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Install Flutter Linux desktop build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            ninja-build \
-            libgtk-3-dev \
-            clang \
-            cmake \
-            pkg-config \
-            liblzma-dev
+  #     - name: Install Flutter Linux desktop build dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y \
+  #           ninja-build \
+  #           libgtk-3-dev \
+  #           clang \
+  #           cmake \
+  #           pkg-config \
+  #           liblzma-dev
 
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+  #     - uses: subosito/flutter-action@v2
+  #       with:
+  #         flutter-version: ${{ env.FLUTTER_VERSION }}
+  #         channel: stable
+  #         cache: true
 
-      - name: Enable Linux desktop support
-        run: flutter config --enable-linux-desktop
+  #     - name: Enable Linux desktop support
+  #       run: flutter config --enable-linux-desktop
 
-      - run: flutter pub get
+  #     - run: flutter pub get
 
-      - name: Build Linux release
-        run: |
-          flutter build linux --release \
-            --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --build-name="$VERSION" \
-            --build-number="${{ github.run_number }}"
+  #     - name: Build Linux release
+  #       run: |
+  #         flutter build linux --release \
+  #           --dart-define=API_BASE_URL="$API_BASE_URL" \
+  #           --build-name="$VERSION" \
+  #           --build-number="${{ github.run_number }}"
 
-      - name: Assemble AppDir
-        run: |
-          BUNDLE_DIR="build/linux/x64/release/bundle"
-          APPDIR="AppDir"
-          mkdir -p "$APPDIR/usr/bin"
-          cp -r "$BUNDLE_DIR"/* "$APPDIR/usr/bin/"
+  #     - name: Assemble AppDir
+  #       run: |
+  #         BUNDLE_DIR="build/linux/x64/release/bundle"
+  #         APPDIR="AppDir"
+  #         mkdir -p "$APPDIR/usr/bin"
+  #         cp -r "$BUNDLE_DIR"/* "$APPDIR/usr/bin/"
 
-          cat > "$APPDIR/AppRun" <<'EOF'
-          #!/bin/bash
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          export LD_LIBRARY_PATH="$HERE/usr/bin/lib:${LD_LIBRARY_PATH}"
-          cd "$HERE/usr/bin" && exec ./lecoteaufleuri "$@"
-          EOF
-          chmod +x "$APPDIR/AppRun"
+  #         cat > "$APPDIR/AppRun" <<'EOF'
+  #         #!/bin/bash
+  #         HERE="$(dirname "$(readlink -f "${0}")")"
+  #         export LD_LIBRARY_PATH="$HERE/usr/bin/lib:${LD_LIBRARY_PATH}"
+  #         cd "$HERE/usr/bin" && exec ./lecoteaufleuri "$@"
+  #         EOF
+  #         chmod +x "$APPDIR/AppRun"
 
-          cat > "$APPDIR/lecoteaufleuri.desktop" <<EOF
-          [Desktop Entry]
-          Type=Application
-          Name=Le Coteau Fleuri
-          Exec=lecoteaufleuri
-          Icon=lecoteaufleuri
-          Categories=Utility;
-          Terminal=false
-          StartupWMClass=$BUNDLE_ID
-          EOF
+  #         cat > "$APPDIR/lecoteaufleuri.desktop" <<EOF
+  #         [Desktop Entry]
+  #         Type=Application
+  #         Name=Le Coteau Fleuri
+  #         Exec=lecoteaufleuri
+  #         Icon=lecoteaufleuri
+  #         Categories=Utility;
+  #         Terminal=false
+  #         StartupWMClass=$BUNDLE_ID
+  #         EOF
 
-          cp assets/icon/app_icon.png "$APPDIR/lecoteaufleuri.png"
+  #         cp assets/icon/app_icon.png "$APPDIR/lecoteaufleuri.png"
 
-      - name: Download appimagetool
-        run: |
-          wget -q -O appimagetool \
-            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool
+  #     - name: Download appimagetool
+  #       run: |
+  #         wget -q -O appimagetool \
+  #           https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+  #         chmod +x appimagetool
 
-      - name: Build AppImage
-        # `--appimage-extract-and-run` : appimagetool est lui-même un AppImage
-        # qui requiert FUSE2 pour s'auto-monter, indisponible sur GHA.
-        run: |
-          APPIMAGE_NAME="lecoteaufleuri-linux-${VERSION}-x86_64.AppImage"
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "$APPIMAGE_NAME"
-          echo "APPIMAGE_NAME=$APPIMAGE_NAME" >> "$GITHUB_ENV"
+  #     - name: Build AppImage
+  #       # `--appimage-extract-and-run` : appimagetool est lui-même un AppImage
+  #       # qui requiert FUSE2 pour s'auto-monter, indisponible sur GHA.
+  #       run: |
+  #         APPIMAGE_NAME="lecoteaufleuri-linux-${VERSION}-x86_64.AppImage"
+  #         ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "$APPIMAGE_NAME"
+  #         echo "APPIMAGE_NAME=$APPIMAGE_NAME" >> "$GITHUB_ENV"
 
-      - name: Upload Linux AppImage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lecoteaufleuri-linux
-          path: ${{ env.APPIMAGE_NAME }}
-          retention-days: 14
-          if-no-files-found: error
+  #     - name: Upload Linux AppImage artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: lecoteaufleuri-linux
+  #         path: ${{ env.APPIMAGE_NAME }}
+  #         retention-days: 14
+  #         if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════════════════════
   # BUILD GATE — Sentinelle qui valide que tous les builds sont verts
@@ -666,7 +678,7 @@ jobs:
 
   build-gate:
     name: All builds passed
-    needs: [build-android, build-ios, build-macos, build-windows, build-linux]
+    needs: [build-ios, build-macos]  # + build-android, build-windows, build-linux une fois réactivés
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
@@ -746,11 +758,13 @@ jobs:
 
     steps:
       # On ne télécharge que les artifacts dont on attache des fichiers.
-      - name: Download release artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: "lecoteaufleuri-{android,windows,linux}"
-          path: artifacts/
+      # Désactivé avec les builds Android / Windows / Linux : sans eux, la
+      # release ne porte que le changelog.
+      # - name: Download release artifacts
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     pattern: "lecoteaufleuri-{android,windows,linux}"
+      #     path: artifacts/
 
       - name: Download changelog
         uses: actions/download-artifact@v4
@@ -769,12 +783,13 @@ jobs:
             [ -n "$f" ] || continue
             echo "  - $f"
             ASSETS+=("$f")
-          done < <(find artifacts -type f \
+          done < <(find artifacts -type f 2>/dev/null \
             \( -name '*.apk' -o -name '*.zip' -o -name '*.AppImage' \) | sort)
 
           if [ ${#ASSETS[@]} -eq 0 ]; then
-            echo "ERROR: no release assets found"
-            exit 1
+            # Normal tant qu'Android, Windows et Linux sont désactivés ; à
+            # remettre en erreur quand ils reviennent.
+            echo "::notice::Aucun asset installable : release avec changelog seul"
           fi
 
           # Le changelog porte les liens de GitLab (dépôt canonique) : les SHAs
@@ -795,41 +810,46 @@ jobs:
   # PUBLISH — Uploads stores (déclenchés APRÈS la GitHub Release)
   # ═══════════════════════════════════════════════════════════════════════
 
-  publish-android:
-    name: Publish Android to Play Store
-    needs: [release]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  # ─── DÉSACTIVÉ ─────────────────────────────────────────────────────────
+  # Android, Windows et Linux sont mis de côté pour l'instant : seuls iOS et
+  # macOS (TestFlight) sont construits et publiés. Pour en réactiver un,
+  # décommenter son job, le remettre dans `needs` de build-gate, et (pour
+  # Android / Windows / Linux) le téléchargement des assets dans `release`.
+  # publish-android:
+  #   name: Publish Android to Play Store
+  #   needs: [release]
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 20
 
-    env:
-      GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
+  #   env:
+  #     GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Setup Python (requis par codemagic-cli-tools)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+  #     - name: Setup Python (requis par codemagic-cli-tools)
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
 
-      - name: Install codemagic-cli-tools
-        run: pip install codemagic-cli-tools
+  #     - name: Install codemagic-cli-tools
+  #       run: pip install codemagic-cli-tools
 
-      - name: Download Android artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: lecoteaufleuri-android
-          path: artifacts/
+  #     - name: Download Android artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: lecoteaufleuri-android
+  #         path: artifacts/
 
-      - name: Publish to Play Store (internal track)
-        run: |
-          AAB_PATH=$(find artifacts -type f -name '*.aab' | head -1)
-          echo "Uploading: $AAB_PATH"
-          google-play bundles publish \
-            --credentials "@env:GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" \
-            --bundle "$AAB_PATH" \
-            --track internal \
-            --release-notes "@file:release_notes_android.json"
+  #     - name: Publish to Play Store (internal track)
+  #       run: |
+  #         AAB_PATH=$(find artifacts -type f -name '*.aab' | head -1)
+  #         echo "Uploading: $AAB_PATH"
+  #         google-play bundles publish \
+  #           --credentials "@env:GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" \
+  #           --bundle "$AAB_PATH" \
+  #           --track internal \
+  #           --release-notes "@file:release_notes_android.json"
 
   publish-ios:
     name: Publish iOS to TestFlight

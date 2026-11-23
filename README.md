@@ -74,11 +74,12 @@ Commits **conventionnels** (`feat:`, `fix:`, …) sur `main` → tout le reste e
 2. **GitHub Actions** (`.github/workflows/release.yml`), sur push de `main` :
    - `version` : `semantic-release --dry-run` calcule la prochaine version (rien à publier → stop) ;
      `check` : `flutter analyze` + `flutter test` ;
-   - builds signés de toutes les plateformes, avec cette version (`--build-name`) ;
+   - builds signés iOS et macOS, avec cette version (`--build-name`). Android, Windows et Linux
+     sont **désactivés** pour l'instant (jobs commentés dans le workflow, avec `publish-android`) ;
    - `tag` : **une fois tous les builds verts**, `semantic-release` pose `vX.Y.Z` sur le commit buildé
      et le pousse sur GitLab ;
-   - GitHub Release (APK, .zip Windows, AppImage, changelog) → Play Store (piste internal) et
-     TestFlight (iOS + macOS, testeurs internes).
+   - GitHub Release (changelog seul tant qu'Android, Windows et Linux sont désactivés ; sinon
+     APK, .zip Windows, AppImage) → TestFlight (iOS + macOS, testeurs internes).
 
 Un build raté ne laisse donc ni tag ni commit à défaire : on corrige, on pousse, la même version est
 retentée (ou « Re-run failed jobs » pour un échec passager). Le tag est la seule source de la version :
@@ -101,19 +102,19 @@ Les textes « What's New » des stores sont dans `release_notes.json` (TestFligh
 | Secret | Contenu |
 |---|---|
 | `GITLAB_TOKEN` | Project Access Token GitLab (`lecoteaufleuri/app`), scope `write_repository`, rôle Maintainer — sert à poser les tags. Si les tags `v*` sont protégés côté GitLab, autoriser ce rôle à les créer. |
-| `ANDROID_KEYSTORE_BASE64` | keystore upload (.jks) encodé base64 |
-| `ANDROID_KEYSTORE_PASSWORD` · `ANDROID_KEY_ALIAS` · `ANDROID_KEY_PASSWORD` | accès à la clé upload |
-| `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | JSON du compte de service Google Play |
+| `ANDROID_KEYSTORE_BASE64` | keystore upload (.jks) encodé base64 — *inutile tant qu'Android est désactivé* |
+| `ANDROID_KEYSTORE_PASSWORD` · `ANDROID_KEY_ALIAS` · `ANDROID_KEY_PASSWORD` | accès à la clé upload — *idem* |
+| `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | JSON du compte de service Google Play — *idem* |
 | `APP_STORE_CONNECT_KEY_IDENTIFIER` · `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_PRIVATE_KEY` | clé API App Store Connect |
 | `CERTIFICATE_PRIVATE_KEY` | clé privée du certificat Apple Distribution |
 | `MAC_INSTALLER_CERTIFICATE_P12_BASE64` · `MAC_INSTALLER_CERTIFICATE_PASSWORD` | certificat « 3rd Party Mac Developer Installer » |
 
 | Variable | Contenu |
 |---|---|
-| `APP_STORE_APPLE_ID` | Apple ID numérique de l'app dans App Store Connect (fiche iOS + macOS) |
 | `API_BASE_URL` | Origine HTTPS de l'API de prod, injectée dans tous les builds (`--dart-define`). Absente ou non HTTPS → le job `version` échoue plutôt que de publier l'app en mode démo. |
 
-**Stores** : créer l'app `com.lecoteaufleuri.app` dans la Play Console (un premier AAB peut devoir
-être uploadé à la main) et dans App Store Connect (plateformes iOS + macOS).
+**Stores** : créer l'app `com.lecoteaufleuri.app` dans App Store Connect (plateformes iOS + macOS) ;
+son Apple ID (`6838406742`) est écrit en dur dans le workflow (`APP_STORE_APPLE_ID`). Quand Android
+reviendra : la créer aussi dans la Play Console (un premier AAB peut devoir être uploadé à la main).
 
 En local, sans `android/key.properties`, le build release Android est signé avec la clé debug.
