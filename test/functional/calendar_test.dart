@@ -125,7 +125,14 @@ void main() {
       await launchAs(tester, sacha);
 
       await tapKey(tester, 'calendarModule');
-      expect(find.text('Samedi 10 juillet'), findsOneWidget);
+      // La grille des heures, à partir du premier jour du séjour.
+      expect(find.byKey(const Key('timeGrid')), findsOneWidget);
+      expect(
+        find.byKey(
+          Key('gridDay-${DateTime.utc(2027, 7, 10).toIso8601String()}'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Petit-déjeuner'), findsWidgets);
       expect(find.text('Mes suggestions'), findsOneWidget);
 
@@ -205,15 +212,51 @@ void main() {
     );
     await tapKey(tester, 'action-cancelDay');
     expect(find.text('Annulé le samedi 10 juillet.'), findsOneWidget);
-    expect(find.text('Annulé ce jour'), findsOneWidget);
     expect(
       (await calendar.entries(summer)).single.changes.single.isCancelled,
       isTrue,
     );
 
+    // En liste, le jour annulé le dit en toutes lettres.
+    await tapKey(tester, 'toggleView');
+    expect(find.byKey(const Key('timeGrid')), findsNothing);
+    expect(find.text('Annulé ce jour'), findsOneWidget);
+
     await tapKey(tester, 'occurrence-$breakfast');
     await tapKey(tester, 'action-restoreDay');
     expect(find.text('Annulé ce jour'), findsNothing);
     expect((await calendar.entries(summer)).single.changes, isEmpty);
+  });
+
+  testWidgets('toucher un créneau libre de la grille y place un événement', (
+    tester,
+  ) async {
+    await launchAs(tester, dominique);
+    await tapKey(tester, 'calendarModule');
+
+    // Le lundi 12 juillet, à 10 h 10 : le créneau de 10 h.
+    final slots = find.byKey(
+      Key('slots-${DateTime.utc(2027, 7, 12).toIso8601String()}'),
+    );
+    await tester.tapAt(
+      tester.getTopLeft(slots) + const Offset(20, 10 * 56 + 10),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nouvel événement'), findsOneWidget);
+    expect(find.text('Le 12 juil.'), findsOneWidget);
+    expect(find.text('Début 10:00'), findsOneWidget);
+    expect(find.text('Fin 11:00'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('entryTitle')), 'Jeux d\'eau');
+    await tester.pump();
+    await tapKey(tester, 'submitEntry');
+
+    expect(find.text('Événement ajouté.'), findsOneWidget);
+    expect(find.text('Jeux d\'eau'), findsOneWidget);
+    final added = (await calendar.entries(
+      summer,
+    )).where((entry) => entry.details.title == 'Jeux d\'eau').single;
+    expect(added.schedule.startsOn, DateTime.utc(2027, 7, 12));
+    expect(added.schedule.startTime, const ClockTime(10, 0));
   });
 }

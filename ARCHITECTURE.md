@@ -173,6 +173,13 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   « Calendrier du séjour ») : toute l'équipe le lit, jour par jour — une
   colonne par jour, autant que la largeur en permet (une sur téléphone, où
   l'on glisse d'un jour à l'autre), un bandeau des jours du séjour au-dessus.
+  Par défaut en **grille des heures**, comme Google Agenda (`time_grid.dart`) :
+  chaque occurrence est un bloc à son heure, aussi haut que sa durée (un
+  quart d'heure sur une ligne sans heure de fin), celles qui se chevauchent
+  côte à côte (`layoutDay`) ; la journée et les événements sur plusieurs
+  jours dans l'en-tête du jour ; une ligne pour l'heure qu'il est ; toucher
+  un créneau libre y ajoute (ou y propose) un événement. Un bouton passe à
+  la **liste** de chaque jour.
   Chaque événement a sa catégorie (vie quotidienne, arrivée ou départ,
   imprévu, activité) et sa couleur ; une série se répète certains jours de
   la semaine, et un jour peut s'en écarter (modifié ou annulé). Les jours

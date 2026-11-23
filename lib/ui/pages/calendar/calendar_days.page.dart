@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lecoteaufleuri/core/application/dtos/calendar.dto.dart';
 import 'package:lecoteaufleuri/core/application/dtos/stay.dto.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/calendar.exception.dart';
+import 'package:lecoteaufleuri/core/domain/model/calendar.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/calendar_suggestions.controller_provider.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/stay_calendar.controller_provider.dart';
@@ -12,11 +13,15 @@ import 'package:lecoteaufleuri/ui/pages/calendar/calendar_display.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/calendar_error_message.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/entry_editor.page.dart';
 import 'package:lecoteaufleuri/ui/pages/calendar/occurrence_actions.dart';
+import 'package:lecoteaufleuri/ui/pages/calendar/time_grid.dart';
 import 'package:lecoteaufleuri/ui/pages/news/news_display.dart';
 
 /// Le calendrier d'un séjour, jour par jour : un jour à la fois sur
 /// téléphone (on glisse pour changer de jour), plusieurs côte à côte sur un
 /// écran plus large. Le bandeau du haut mène à n'importe quel jour du séjour.
+///
+/// Deux affichages : la grille des heures (`CalendarTimeGrid`, par défaut),
+/// comme Google Agenda, ou la liste de ce qui a lieu chaque jour.
 ///
 /// La direction y ajoute des événements et agit sur chacun ; un animateur
 /// lit et propose (cf. `ACCES.md`, « Calendrier du séjour »). Les jours
@@ -37,10 +42,20 @@ class CalendarDaysPage extends ConsumerStatefulWidget {
 
 class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
     with AutomaticKeepAliveClientMixin {
-  static const _columnWidth = 280.0;
+  /// La largeur d'un jour en liste ; en grille, plus étroite.
+  static const _listColumnWidth = 280.0;
+  static const _gridColumnWidth = 140.0;
   static const _stripItemWidth = 56.0;
 
+  /// En grille, un jour à la fois sous cette largeur (un téléphone).
+  static const _gridCompactWidth = 600.0;
+
   final _strip = ScrollController();
+
+  /// La grille s'ouvre sur 7 h, comme une journée commence (son heure
+  /// lisible en haut).
+  final _hours = ScrollController(initialScrollOffset: 7 * gridHourHeight - 16);
+  bool _grid = true;
   late final List<DateTime> _days;
   late int _first;
   int _columns = 1;
@@ -64,6 +79,7 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
   @override
   void dispose() {
     _strip.dispose();
+    _hours.dispose();
     super.dispose();
   }
 
@@ -98,7 +114,9 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
     );
   }
 
-  Future<void> _add() async {
+  /// Ajoute (ou propose) un événement, le jour affiché ou [day], à [start]
+  /// s'il vient d'un créneau touché dans la grille.
+  Future<void> _add({DateTime? day, ClockTime? start}) async {
     final stay = widget.stay;
     final direction = widget.direction;
     final calendar = ref.read(stayCalendarControllerProvider(stay.id).notifier);
@@ -114,7 +132,8 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
           intro: direction
               ? null
               : 'La direction verra votre proposition et pourra l\'accepter.',
-          defaultDay: _days[_first],
+          defaultDay: day ?? _days[_first],
+          defaultStartTime: start,
           asksMessage: !direction,
           onSubmit: ({entry, occurrence, required message}) => direction
               ? calendar.create(entry!)
@@ -157,8 +176,13 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
             ),
       body: LayoutBuilder(
         builder: (context, constraints) {
+          final width = constraints.maxWidth;
           final columns = _within(
-            (constraints.maxWidth / _columnWidth).floor(),
+            _grid
+                ? (width < _gridCompactWidth
+                      ? 1
+                      : ((width - gridGutterWidth) / _gridColumnWidth).floor())
+                : (width / _listColumnWidth).floor(),
             1,
             math.min(7, _days.length),
           );
@@ -189,6 +213,8 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
                     ? () => _show(first + _columns)
                     : null,
                 onToday: today == null ? null : () => _show(today),
+                grid: _grid,
+                onToggleView: () => setState(() => _grid = !_grid),
               ),
               const Divider(height: 1),
               Expanded(
@@ -200,27 +226,40 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
                       if (velocity.abs() < 300) return;
                       _show(first + (velocity < 0 ? _columns : -_columns));
                     },
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final (index, day) in visible.indexed) ...[
-                          if (index > 0) const VerticalDivider(width: 1),
-                          Expanded(
-                            child: _DayColumn(
-                              key: Key('day-${day.toIso8601String()}'),
-                              stay: stay,
-                              day: day,
-                              isToday: day == calendarDay(DateTime.now()),
-                              occurrences: value.on(
-                                day,
-                                withCancelled: widget.direction,
-                              ),
-                              direction: widget.direction,
+                    child: _grid
+                        ? CalendarTimeGrid(
+                            stay: stay,
+                            days: visible,
+                            calendar: value,
+                            direction: widget.direction,
+                            scroll: _hours,
+                            onRefresh: () => ref.refresh(
+                              stayCalendarControllerProvider(stay.id).future,
                             ),
+                            onSlot: (day, start) =>
+                                _add(day: day, start: start),
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final (index, day) in visible.indexed) ...[
+                                if (index > 0) const VerticalDivider(width: 1),
+                                Expanded(
+                                  child: _DayColumn(
+                                    key: Key('day-${day.toIso8601String()}'),
+                                    stay: stay,
+                                    day: day,
+                                    isToday: day == calendarDay(DateTime.now()),
+                                    occurrences: value.on(
+                                      day,
+                                      withCancelled: widget.direction,
+                                    ),
+                                    direction: widget.direction,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
-                      ],
-                    ),
                   ),
                   (_, final Object error) => Center(
                     child: Padding(
@@ -271,6 +310,8 @@ class _DayStrip extends StatelessWidget {
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final VoidCallback? onToday;
+  final bool grid;
+  final VoidCallback onToggleView;
 
   const _DayStrip({
     required this.days,
@@ -283,6 +324,8 @@ class _DayStrip extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onToday,
+    required this.grid,
+    required this.onToggleView,
   });
 
   @override
@@ -359,14 +402,20 @@ class _DayStrip extends StatelessWidget {
             onPressed: onNext,
           ),
           if (onToday != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: TextButton(
-                key: const Key('todayButton'),
-                onPressed: onToday,
-                child: const Text('Aujourd\'hui'),
-              ),
+            IconButton(
+              key: const Key('todayButton'),
+              tooltip: 'Aujourd\'hui',
+              icon: const Icon(Icons.today_outlined),
+              onPressed: onToday,
             ),
+          IconButton(
+            key: const Key('toggleView'),
+            tooltip: grid ? 'Afficher en liste' : 'Afficher en grille',
+            icon: Icon(
+              grid ? Icons.view_agenda_outlined : Icons.calendar_view_week,
+            ),
+            onPressed: onToggleView,
+          ),
         ],
       ),
     );
