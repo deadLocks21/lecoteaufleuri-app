@@ -699,14 +699,28 @@ class _StaySwitcher extends ConsumerWidget {
                     ? const Icon(Icons.check, size: 18)
                     : null,
                 onPressed: () => context.go(AppRoutes.stay(mine.stay.id)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(mine.stay.name),
-                      Text(_staySubtitle(mine), style: muted),
-                    ],
+                // Chaque ligne tient sur une ligne, coupée de « … » au-delà
+                // de la largeur du menu.
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: _menuTextWidth),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          mine.stay.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _staySubtitle(mine),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: muted,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -767,6 +781,8 @@ class _StaySwitcher extends ConsumerWidget {
                                         space!.role == null
                                             ? 'Administration'
                                             : staffRoleLabel(space!.role!),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: muted,
                                       ),
                                       Text(
@@ -774,6 +790,8 @@ class _StaySwitcher extends ConsumerWidget {
                                           stay!.startsOn,
                                           stay.endsOn,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: muted,
                                       ),
                                     ],
@@ -795,6 +813,9 @@ class _StaySwitcher extends ConsumerWidget {
       },
     );
   }
+
+  /// La largeur des textes d'un séjour dans le menu.
+  static const _menuTextWidth = 280.0;
 
   /// La place des détails à droite de l'avatar, la barre dépliée.
   static const _detailsWidth = _extendedWidth - 2 * _navMargin - 2 * 10 - 36;
