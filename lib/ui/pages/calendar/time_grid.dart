@@ -157,32 +157,39 @@ class _DayHeader extends StatelessWidget {
           key: Key('gridDay-${day.toIso8601String()}'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              shortWeekday(day),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: isToday ? colors.primary : colors.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Center(
-              child: Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: isToday
-                    ? BoxDecoration(
-                        color: colors.primary,
-                        shape: BoxShape.circle,
-                      )
-                    : null,
-                child: Text(
-                  '${day.day}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: isToday ? colors.onPrimary : null,
+            // Le jour et son numéro sur une ligne : « sam. 10 ».
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    shortWeekday(day),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: isToday ? colors.primary : colors.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: isToday
+                      ? BoxDecoration(
+                          color: colors.primary,
+                          shape: BoxShape.circle,
+                        )
+                      : null,
+                  child: Text(
+                    '${day.day}',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: isToday ? colors.onPrimary : null,
+                    ),
+                  ),
+                ),
+              ],
             ),
             if (allDay.isNotEmpty) const SizedBox(height: 4),
             for (final occurrence in allDay)
