@@ -111,6 +111,7 @@ Les textes « What's New » des stores sont dans `release_notes.json` (TestFligh
 | Variable | Contenu |
 |---|---|
 | `APP_STORE_APPLE_ID` | Apple ID numérique de l'app dans App Store Connect (fiche iOS + macOS) |
+| `API_BASE_URL` | Origine HTTPS de l'API de prod, injectée dans tous les builds (`--dart-define`). Absente ou non HTTPS → le job `version` échoue plutôt que de publier l'app en mode démo. |
 
 **Stores** : créer l'app `com.lecoteaufleuri.app` dans la Play Console (un premier AAB peut devoir
 être uploadé à la main) et dans App Store Connect (plateformes iOS + macOS).
