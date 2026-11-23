@@ -205,6 +205,8 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
                 days: _days,
                 first: first,
                 columns: _columns,
+                // Tout le séjour tient à l'écran : rien à choisir.
+                allVisible: _columns >= _days.length,
                 today: today,
                 controller: _strip,
                 itemWidth: _stripItemWidth,
@@ -300,10 +302,13 @@ class _CalendarDaysPageState extends ConsumerState<CalendarDaysPage>
 }
 
 /// Le bandeau des jours du séjour : on y touche un jour pour l'afficher.
+/// Quand tous les jours sont à l'écran, il ne garde que le choix de
+/// l'affichage.
 class _DayStrip extends StatelessWidget {
   final List<DateTime> days;
   final int first;
   final int columns;
+  final bool allVisible;
   final int? today;
   final ScrollController controller;
   final double itemWidth;
@@ -318,6 +323,7 @@ class _DayStrip extends StatelessWidget {
     required this.days,
     required this.first,
     required this.columns,
+    required this.allVisible,
     required this.today,
     required this.controller,
     required this.itemWidth,
@@ -333,6 +339,18 @@ class _DayStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final toggle = IconButton(
+      key: const Key('toggleView'),
+      tooltip: grid ? 'Afficher en liste' : 'Afficher en grille',
+      icon: Icon(grid ? Icons.view_agenda_outlined : Icons.calendar_view_week),
+      onPressed: onToggleView,
+    );
+    if (allVisible) {
+      return SizedBox(
+        height: 48,
+        child: Align(alignment: Alignment.centerRight, child: toggle),
+      );
+    }
     return SizedBox(
       height: 68,
       child: Row(
@@ -409,14 +427,7 @@ class _DayStrip extends StatelessWidget {
               icon: const Icon(Icons.today_outlined),
               onPressed: onToday,
             ),
-          IconButton(
-            key: const Key('toggleView'),
-            tooltip: grid ? 'Afficher en liste' : 'Afficher en grille',
-            icon: Icon(
-              grid ? Icons.view_agenda_outlined : Icons.calendar_view_week,
-            ),
-            onPressed: onToggleView,
-          ),
+          toggle,
         ],
       ),
     );
