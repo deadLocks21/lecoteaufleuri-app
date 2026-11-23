@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lecoteaufleuri/core/application/dtos/calendar.dto.dart';
 import 'package:lecoteaufleuri/core/application/dtos/stay.dto.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/calendar.exception.dart';
@@ -25,6 +26,9 @@ typedef EditorSubmit =
 ///
 /// La page se referme en rendant `true` quand [onSubmit] réussit ; l'erreur
 /// s'affiche sinon, et l'on reste sur la page.
+///
+/// Échap (ou le retour) la referme sans rien envoyer ; si l'on a changé
+/// quelque chose, on confirme d'abord qu'on le perd.
 class EntryEditorPage extends StatefulWidget {
   final StayDto stay;
   final String title;
@@ -88,6 +92,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   ClockTime? _end;
   bool _busy = false;
 
+  /// Ce que la page montrait à l'ouverture : on le compare à ce qu'elle
+  /// montre en partant.
+  late final String _initial;
+
+  /// La page se referme pour de bon : envoyée, ou les changements laissés.
+  bool _leaving = false;
+
   @override
   void initState() {
     super.initState();
@@ -128,6 +139,55 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                   ? ClockTime(defaultStart.hour + 1, defaultStart.minute)
                   : null)
         : end;
+    _initial = _snapshot;
+  }
+
+  /// Tout ce qu'on peut changer dans la page, en une valeur comparable.
+  String get _snapshot => [
+    _category.name,
+    _title.text,
+    _place.text,
+    _notes.text,
+    _message.text,
+    _repeats,
+    _startsOn,
+    _endsOn,
+    (_weekdays.toList()..sort()).join(','),
+    _allDay,
+    _start,
+    _end,
+  ].join('\u0000');
+
+  bool get _dirty => _snapshot != _initial;
+
+  /// Referme la page, après confirmation s'il y a des changements.
+  Future<void> _leave() async {
+    if (_dirty) {
+      final discard =
+          await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Abandonner les modifications ?'),
+              content: const Text('Ce que vous avez saisi sera perdu.'),
+              actions: [
+                TextButton(
+                  key: const Key('keepEditing'),
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Continuer'),
+                ),
+                FilledButton(
+                  key: const Key('discardChanges'),
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Abandonner'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!discard || !mounted) return;
+    }
+    setState(() => _leaving = true);
+    Navigator.of(context).pop();
   }
 
   @override
@@ -185,6 +245,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (error == null) {
+      setState(() => _leaving = true);
       Navigator.of(context).pop(true);
       return;
     }
@@ -226,247 +287,272 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     );
     final problem = _problem;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: [
-          TextButton(
-            key: const Key('submitEntry'),
-            onPressed: _canSubmit ? _submit : null,
-            child: Text(widget.submitLabel),
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
-            children: [
-              if (widget.intro case final intro?) ...[
-                Text(intro, style: muted),
-                const SizedBox(height: 16),
+    return PopScope(
+      canPop: _leaving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () =>
+              Navigator.of(context).maybePop(),
+        },
+        child: Focus(
+          autofocus: true,
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(widget.title),
+              actions: [
+                TextButton(
+                  key: const Key('submitEntry'),
+                  onPressed: _canSubmit ? _submit : null,
+                  child: Text(widget.submitLabel),
+                ),
               ],
-              TextField(
-                key: const Key('entryTitle'),
-                controller: _title,
-                maxLength: EntryDetails.titleMaxLength,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Titre',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              if (!widget.editsOccurrence) ...[
-                const SizedBox(height: 8),
-                Text('Catégorie', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+            ),
+            body: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
                   children: [
-                    for (final category in CalendarCategory.values)
-                      ChoiceChip(
-                        key: Key('category-${category.name}'),
-                        avatar: Icon(categoryIcon(category), size: 18),
-                        label: Text(categoryLabel(category)),
-                        showCheckmark: false,
-                        selected: _category == category,
-                        onSelected: (_) => setState(() {
-                          _category = category;
-                          // La vie quotidienne se répète, le plus souvent.
-                          if (category == CalendarCategory.daily &&
-                              widget.entry == null &&
-                              !_repeats) {
-                            _setRepeats(true);
-                          }
-                        }),
+                    if (widget.intro case final intro?) ...[
+                      Text(intro, style: muted),
+                      const SizedBox(height: 16),
+                    ],
+                    TextField(
+                      key: const Key('entryTitle'),
+                      controller: _title,
+                      maxLength: EntryDetails.titleMaxLength,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Titre',
+                        border: OutlineInputBorder(),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  key: const Key('repeatsSwitch'),
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Se répète'),
-                  subtitle: const Text(
-                    'Certains jours de la semaine, sur une période du séjour',
-                  ),
-                  value: _repeats,
-                  onChanged: (value) => setState(() => _setRepeats(value)),
-                ),
-                if (_repeats) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    children: [
-                      for (var day = 1; day <= 7; day++)
-                        Tooltip(
-                          message: weekdayName(day),
-                          child: FilterChip(
-                            key: Key('weekday-$day'),
-                            label: Text(weekdayLetters[day - 1]),
-                            showCheckmark: false,
-                            selected: _weekdays.contains(day),
-                            onSelected: (selected) => setState(
-                              () => selected
-                                  ? _weekdays.add(day)
-                                  : _weekdays.remove(day),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    if (!widget.editsOccurrence) ...[
+                      const SizedBox(height: 8),
+                      Text('Catégorie', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final category in CalendarCategory.values)
+                            ChoiceChip(
+                              key: Key('category-${category.name}'),
+                              avatar: Icon(categoryIcon(category), size: 18),
+                              label: Text(categoryLabel(category)),
+                              showCheckmark: false,
+                              selected: _category == category,
+                              onSelected: (_) => setState(() {
+                                _category = category;
+                                // La vie quotidienne se répète, le plus souvent.
+                                if (category == CalendarCategory.daily &&
+                                    widget.entry == null &&
+                                    !_repeats) {
+                                  _setRepeats(true);
+                                }
+                              }),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        key: const Key('repeatsSwitch'),
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Se répète'),
+                        subtitle: const Text(
+                          'Certains jours de la semaine, sur une période du séjour',
+                        ),
+                        value: _repeats,
+                        onChanged: (value) =>
+                            setState(() => _setRepeats(value)),
+                      ),
+                      if (_repeats) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          children: [
+                            for (var day = 1; day <= 7; day++)
+                              Tooltip(
+                                message: weekdayName(day),
+                                child: FilterChip(
+                                  key: Key('weekday-$day'),
+                                  label: Text(weekdayLetters[day - 1]),
+                                  showCheckmark: false,
+                                  selected: _weekdays.contains(day),
+                                  onSelected: (selected) => setState(
+                                    () => selected
+                                        ? _weekdays.add(day)
+                                        : _weekdays.remove(day),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(displayWeekdays(_weekdays.toList()), style: muted),
+                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _DayButton(
+                              key: const Key('startsOn'),
+                              label: _repeats ? 'Du' : 'Le',
+                              day: _startsOn,
+                              onTap: () async {
+                                final day = await _pickDay(_startsOn);
+                                if (day == null) return;
+                                // Un événement d'un jour suit son jour ; une
+                                // période garde sa fin tant qu'elle la suit.
+                                final single =
+                                    !_repeats && _endsOn == _startsOn;
+                                setState(() {
+                                  _startsOn = day;
+                                  if (single || _endsOn.isBefore(day)) {
+                                    _endsOn = day;
+                                  }
+                                });
+                              },
                             ),
                           ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _DayButton(
+                              key: const Key('endsOn'),
+                              label: _repeats ? 'Au' : 'Jusqu\'au',
+                              day: _endsOn,
+                              onTap: () async {
+                                final day = await _pickDay(
+                                  _endsOn,
+                                  first: _startsOn,
+                                );
+                                if (day != null) setState(() => _endsOn = day);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else
+                      Text(
+                        'Le ${displayNewsDay(widget.occurrenceDay!).toLowerCase()} '
+                        'seulement : les autres jours de la série ne changent pas.',
+                        style: muted,
+                      ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      key: const Key('allDaySwitch'),
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Toute la journée'),
+                      value: _allDay,
+                      onChanged: (value) => setState(() {
+                        _allDay = value;
+                        if (!value) _start ??= const ClockTime(10, 0);
+                      }),
+                    ),
+                    if (!_allDay)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _TimeButton(
+                              key: const Key('startTime'),
+                              label: 'Début',
+                              time: _start,
+                              onTap: () async {
+                                final time = await _pickTime(_start, 'Début');
+                                if (time != null) setState(() => _start = time);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _TimeButton(
+                              key: const Key('endTime'),
+                              label: 'Fin',
+                              time: _end,
+                              placeholder: 'Sans heure de fin',
+                              onTap: () async {
+                                final time = await _pickTime(
+                                  _end ?? _start,
+                                  'Fin',
+                                );
+                                if (time != null) setState(() => _end = time);
+                              },
+                              onClear: _end == null
+                                  ? null
+                                  : () => setState(() => _end = null),
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (problem != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        scheduleProblemMessage(problem),
+                        key: const Key('scheduleProblem'),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.error,
                         ),
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(displayWeekdays(_weekdays.toList()), style: muted),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DayButton(
-                        key: const Key('startsOn'),
-                        label: _repeats ? 'Du' : 'Le',
-                        day: _startsOn,
-                        onTap: () async {
-                          final day = await _pickDay(_startsOn);
-                          if (day == null) return;
-                          // Un événement d'un jour suit son jour ; une
-                          // période garde sa fin tant qu'elle la suit.
-                          final single = !_repeats && _endsOn == _startsOn;
-                          setState(() {
-                            _startsOn = day;
-                            if (single || _endsOn.isBefore(day)) _endsOn = day;
-                          });
-                        },
+                    const SizedBox(height: 16),
+                    TextField(
+                      key: const Key('entryPlace'),
+                      controller: _place,
+                      maxLength: EntryDetails.placeMaxLength,
+                      decoration: const InputDecoration(
+                        labelText: 'Lieu (facultatif)',
+                        prefixIcon: Icon(Icons.place_outlined),
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _DayButton(
-                        key: const Key('endsOn'),
-                        label: _repeats ? 'Au' : 'Jusqu\'au',
-                        day: _endsOn,
-                        onTap: () async {
-                          final day = await _pickDay(_endsOn, first: _startsOn);
-                          if (day != null) setState(() => _endsOn = day);
-                        },
+                    const SizedBox(height: 8),
+                    TextField(
+                      key: const Key('entryNotes'),
+                      controller: _notes,
+                      maxLength: EntryDetails.notesMaxLength,
+                      minLines: 2,
+                      maxLines: 6,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (facultatif)',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                  ],
-                ),
-              ] else
-                Text(
-                  'Le ${displayNewsDay(widget.occurrenceDay!).toLowerCase()} '
-                  'seulement : les autres jours de la série ne changent pas.',
-                  style: muted,
-                ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                key: const Key('allDaySwitch'),
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Toute la journée'),
-                value: _allDay,
-                onChanged: (value) => setState(() {
-                  _allDay = value;
-                  if (!value) _start ??= const ClockTime(10, 0);
-                }),
-              ),
-              if (!_allDay)
-                Row(
-                  children: [
-                    Expanded(
-                      child: _TimeButton(
-                        key: const Key('startTime'),
-                        label: 'Début',
-                        time: _start,
-                        onTap: () async {
-                          final time = await _pickTime(_start, 'Début');
-                          if (time != null) setState(() => _start = time);
-                        },
+                    if (widget.asksMessage) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        key: const Key('suggestionMessage'),
+                        controller: _message,
+                        maxLength: 2000,
+                        minLines: 2,
+                        maxLines: 5,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          labelText: 'Un mot pour la direction (facultatif)',
+                          alignLabelWithHint: true,
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _TimeButton(
-                        key: const Key('endTime'),
-                        label: 'Fin',
-                        time: _end,
-                        placeholder: 'Sans heure de fin',
-                        onTap: () async {
-                          final time = await _pickTime(_end ?? _start, 'Fin');
-                          if (time != null) setState(() => _end = time);
-                        },
-                        onClear: _end == null
-                            ? null
-                            : () => setState(() => _end = null),
-                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _canSubmit ? _submit : null,
+                      child: _busy
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(widget.submitLabel),
                     ),
                   ],
                 ),
-              if (problem != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  scheduleProblemMessage(problem),
-                  key: const Key('scheduleProblem'),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              TextField(
-                key: const Key('entryPlace'),
-                controller: _place,
-                maxLength: EntryDetails.placeMaxLength,
-                decoration: const InputDecoration(
-                  labelText: 'Lieu (facultatif)',
-                  prefixIcon: Icon(Icons.place_outlined),
-                  border: OutlineInputBorder(),
-                ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                key: const Key('entryNotes'),
-                controller: _notes,
-                maxLength: EntryDetails.notesMaxLength,
-                minLines: 2,
-                maxLines: 6,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Notes (facultatif)',
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              if (widget.asksMessage) ...[
-                const SizedBox(height: 8),
-                TextField(
-                  key: const Key('suggestionMessage'),
-                  controller: _message,
-                  maxLength: 2000,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Un mot pour la direction (facultatif)',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _canSubmit ? _submit : null,
-                child: _busy
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(widget.submitLabel),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lecoteaufleuri/core/domain/model/calendar.dart';
@@ -313,5 +314,37 @@ void main() {
     expect(find.text('Proposer un événement'), findsOneWidget);
     expect(find.text('Début 14:00'), findsOneWidget);
     expect(find.text('Fin 15:45'), findsOneWidget);
+  });
+
+  testWidgets('Échap referme l\'éditeur, après confirmation s\'il a changé', (
+    tester,
+  ) async {
+    await launchAs(tester, dominique);
+    await tapKey(tester, 'calendarModule');
+
+    // Rien de changé : Échap ramène à la grille, sans rien demander.
+    await tapKey(tester, 'addEntryButton');
+    expect(find.text('Nouvel événement'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Nouvel événement'), findsNothing);
+    expect(find.byKey(const Key('timeGrid')), findsOneWidget);
+
+    // Un titre saisi : Échap demande d'abord, et l'on peut rester.
+    await tapKey(tester, 'addEntryButton');
+    await tester.enterText(find.byKey(const Key('entryTitle')), 'Grand jeu');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Abandonner les modifications ?'), findsOneWidget);
+    await tapKey(tester, 'keepEditing');
+    expect(find.text('Nouvel événement'), findsOneWidget);
+    expect(find.text('Grand jeu'), findsOneWidget);
+
+    // Puis abandonner : rien n'est créé.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'discardChanges');
+    expect(find.text('Nouvel événement'), findsNothing);
+    expect(await calendar.entries(summer), hasLength(1));
   });
 }
