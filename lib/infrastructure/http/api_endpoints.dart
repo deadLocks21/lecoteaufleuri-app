@@ -65,4 +65,18 @@ abstract final class ApiEndpoints {
   static String stayCalendarSuggestion(String id, String suggestionId) =>
       '${stayCalendarSuggestions(id)}/$suggestionId';
   static String stayCalendarFeed(String id) => '${stayCalendar(id)}/feed';
+
+  /// Les questions d'un séjour : leur fil, les supprimées et les catégories.
+  static String stayQuestions(String id) => '${stay(id)}/questions';
+  static String stayQuestion(String id, String questionId) =>
+      '${stayQuestions(id)}/$questionId';
+  static String stayQuestionReply(
+    String id,
+    String questionId,
+    String replyId,
+  ) => '${stayQuestion(id, questionId)}/replies/$replyId';
+  static String stayQuestionCategories(String id) =>
+      '${stayQuestions(id)}/categories';
+  static String stayQuestionCategory(String id, String categoryId) =>
+      '${stayQuestionCategories(id)}/$categoryId';
 }

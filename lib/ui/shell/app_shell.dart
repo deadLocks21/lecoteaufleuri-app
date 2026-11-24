@@ -389,7 +389,7 @@ class _SideNav extends ConsumerWidget {
         final space = ref.watch(staySpaceProvider(stayId)).value;
         // Tant que le séjour se lit, les modules ouverts à tous seuls.
         final modules = space == null
-            ? const [StayModule.calendar, StayModule.news]
+            ? const [StayModule.calendar, StayModule.news, StayModule.questions]
             : StayModule.openTo(space, isAdmin: isAdmin);
         final index = module == null ? -1 : modules.indexOf(module);
         return (

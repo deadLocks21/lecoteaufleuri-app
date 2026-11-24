@@ -13,11 +13,13 @@ lib/
 │   │   │                     # StayTeam (StaffRole, TeamMember, StayDetail, MyStay),
 │   │   │                     # News (StayPhoto, PhotoSorting, NewsDay, DayStatus, PublishedDay, PickedPhoto),
 │   │   │                     # Calendar (CalendarEntry, EntrySchedule, ClockTime, OccurrenceChange,
-│   │   │                     # EntryDraft/OccurrenceDraft, CalendarOccurrence, CalendarSuggestion, CalendarFeed)
+│   │   │                     # EntryDraft/OccurrenceDraft, CalendarOccurrence, CalendarSuggestion, CalendarFeed),
+│   │   │                     # Questions (Question, QuestionReply, QuestionCategory, QuestionVisibility)
 │   │   ├── exceptions/       # AuthException, AccountException, StayException, NewsException,
-│   │   │                     # CalendarException (+ codes)
+│   │   │                     # CalendarException, QuestionsException (+ codes)
 │   │   └── services/         # Ports : AuthRepository, SessionRepository, AccountRepository, StayRepository,
-│   │                         # LastStayRepository, NewsRepository, PhotoPicker, CalendarRepository
+│   │                         # LastStayRepository, NewsRepository, PhotoPicker, CalendarRepository,
+│   │                         # QuestionsRepository
 │   └── application/          # Application (Dart pur)
 │       ├── dtos/             # UserDto, SessionDto (sans le JWT), OtpRequestDto, StayDto, StayDetailDto,
 │       │                     # MyStayDto, StaySpaceDto, StayPhotoDto, NewsDayDto, PublishedDayDto,
@@ -42,6 +44,7 @@ lib/
 │   ├── news/                 # dio.news.repository, in_memory.news.repository, news.codec,
 │   │                         # image_picker.photo_picker, demo_photos (PNG de démo dessinés à la volée)
 │   ├── calendar/             # dio.calendar.repository, in_memory.calendar.repository, calendar.codec
+│   ├── questions/            # dio.questions.repository, in_memory.questions.repository, questions.codec
 │   ├── session/              # shared_preferences.session.repository, in_memory.…, codec JSON
 │   ├── http/                 # AuthInterceptor (Bearer, 401, 403), chemins et codes d'erreur de l'API
 │   └── providers/            # Providers Riverpod (@riverpod, *.g.dart) — assemblage DI,
@@ -102,10 +105,11 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   séjours » (`GET /api/me/stays`) sont ceux où le compte a un rôle ; un admin
   ouvre les autres depuis l'administration. Les enfants viendront avec leurs
   liens.
-- **Un séjour se compose de modules** (`StayModule` : Nouvelles, Calendrier, Équipe),
+- **Un séjour se compose de modules** (`StayModule` : Calendrier, Équipe, Nouvelles, Questions),
   chacun montré à qui y a droit, et ses pages sont des onglets du module.
   Adresses : `/sejours/:id` (vue d'ensemble, une tuile par module),
-  `/sejours/:id/nouvelles`, `/sejours/:id/calendrier`, `/sejours/:id/equipe`, `/admin`,
+  `/sejours/:id/nouvelles`, `/sejours/:id/calendrier`, `/sejours/:id/equipe`,
+  `/sejours/:id/questions`, `/admin`,
   `/admin/sejours`, `/admin/comptes`. Un nouvel écran de séjour devient un
   module ou un onglet, pas une carte de plus.
 - **Le cadre suit la largeur** (`AppShell`) : sous 600 points, un tiroir ☰
@@ -202,6 +206,20 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   `InMemoryCalendarRepository` rejoue les règles de l'API, avec un été 2027
   rempli (journée type, arrivées et départs, activités, un imprévu) et deux
   suggestions de Sacha Bernard.
+- **Questions du séjour** (`ui/pages/questions/`, module Questions, `ACCES.md`
+  « Questions du séjour ») : la liste des questions qu'on voit (toutes pour
+  la direction, les publiques et les siennes pour un animateur), la plus
+  récemment active d'abord, filtrée par état (en attente, résolues) et par
+  catégorie. Toute l'équipe en pose ; la direction choisit privée ou
+  publique, un animateur pose à la direction. Le fil s'ouvre en page : y
+  répondent la direction et l'auteur de la question. Le menu suit
+  `QuestionsRights` (direction, directeur, auteur) : modifier, classer,
+  rendre publique (en taisant ou non le nom d'un animateur) ou privée,
+  marquer résolue, supprimer (réversible), restaurer, supprimer
+  définitivement (un directeur). La direction gère les catégories (aussi à
+  la volée, depuis le choix d'une catégorie) et rouvre les questions
+  supprimées. En mémoire, `InMemoryQuestionsRepository` rejoue les règles de
+  l'API, avec trois questions sur l'été 2027 dont une anonyme.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on
   touche le `BackButton`.
