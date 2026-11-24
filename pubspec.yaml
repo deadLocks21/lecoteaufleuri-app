@@ -16,10 +16,6 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-#
-# Le Coteau Fleuri : version JAMAIS bumpée ici. La CI la calcule (semantic-release)
-# et l'injecte au build via --build-name / --build-number ; le tag vX.Y.Z est la
-# seule source de vérité (cf. .github/workflows/release.yml).
 version: 0.0.0+1
 
 environment:

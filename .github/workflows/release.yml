@@ -1,87 +1,63 @@
-# Workflow de release Le Coteau Fleuri, déclenché sur push de `main`.
+# Workflow de release Le Coteau Fleuri, déclenché sur push d'un tag `v*`.
 #
-# GitLab (dépôt canonique) pousse chaque commit de main vers ce miroir
-# (deadLocks21/lecoteaufleuri-app, cf. .gitlab-ci.yml). C'est ICI que la version
-# est calculée, et le tag `vX.Y.Z` n'est posé — sur GitLab — qu'une fois TOUS
-# les builds verts : un build raté ne laisse ni tag ni commit à défaire, et
-# « Re-run failed jobs » reste possible. Builds calqués sur motorz / songbook /
-# kidflix, sans l'updater desktop ni le canal web.
+# Le tag est poussé par la CI GitLab (semantic-release, cf. .gitlab-ci.yml) puis
+# mirroré vers GitHub, ce qui déclenche ce workflow. Même architecture que
+# kidflix / songbook / motorz.
 #
-# Pipeline "version → builds (gate strict) → tag → GitHub Release → stores" :
+# Pipeline "fail-fast au build (gate strict) → GitHub Release → stores" :
 #
-#   1) version          semantic-release --dry-run : prochaine version d'après
-#                       les commits conventionnels depuis le dernier tag. Rien à
-#                       publier (que des chore:/docs:…) → tout le reste est sauté.
-#      check            flutter analyze + flutter test, à chaque push.
-#   2) build-android    AAB (Play Store) + APK universel (sideload), signés.
-#                       — DÉSACTIVÉ (commenté), comme Windows, Linux et
-#                       publish-android : seuls iOS et macOS tournent.
-#      build-ios        IPA signé App Store.
-#      build-macos      .pkg signé Mac App Store.
-#      build-windows    .zip autonome du dossier Release. — DÉSACTIVÉ
-#      build-linux      AppImage x86_64. — DÉSACTIVÉ
-#      Version injectée par --build-name (pubspec.yaml n'est jamais bumpé) ;
-#      tout reste en artifact.
-#   3) build-gate       Sentinelle : TOUS les builds doivent être verts.
-#   4) tag              semantic-release pour de vrai : pose `vX.Y.Z` sur le
-#                       commit buildé et le pousse sur GitLab, après avoir vérifié
-#                       que la version n'a pas bougé. Si main a avancé entre-temps,
-#                       semantic-release ne tague pas : le run suivant (en file
-#                       d'attente) publiera, commits récents compris.
-#   5) release          GitHub Release, changelog semantic-release. Assets :
-#                       uniquement ce qu'un utilisateur peut installer (APK,
-#                       .zip Windows, AppImage) — ni l'AAB, ni l'IPA, ni le .pkg.
-#   6) publish-android  Play Store, piste "internal". — DÉSACTIVÉ
-#      publish-ios      TestFlight (testeurs internes, sans review).
-#      publish-macos    TestFlight macOS (testeurs internes, sans review).
-#      Un échec ici ne remet pas le tag en cause (les binaires existent) :
-#      « Re-run failed jobs » relance juste la publication.
+#   1) prepare         Calcule la version (depuis le tag ou pubspec.yaml), et
+#                      refuse de continuer sans API de prod (API_BASE_URL).
+#
+#   2) Builds parallèle (gate strict) :
+#        build-ios       → IPA signé App Store (artifact).
+#        build-macos     → .pkg signé Mac App Store (artifact).
+#        build-android   → AAB + APK universel signés.   — DÉSACTIVÉ
+#        build-windows   → .zip autonome du dossier Release. — DÉSACTIVÉ
+#        build-linux     → AppImage x86_64.               — DÉSACTIVÉ
+#      Si UN SEUL plante, aucune release ni upload store n'est tenté.
+#
+#   3) build-gate      Sentinelle : TOUS les builds doivent être verts.
+#
+#   4) release         GitHub Release dès le gate franchi, AVANT les stores.
+#                      Notes = changelog semantic-release relu depuis le corps
+#                      du commit `chore(release)` taggé (PAS `release_notes.json`,
+#                      réservé aux stores). Assets : uniquement ce qu'un
+#                      utilisateur peut installer (APK, .zip Windows, AppImage) —
+#                      aucun tant qu'Android / Windows / Linux sont désactivés.
+#
+#   5) Publishes parallèle (déclenchés APRÈS la GitHub Release) :
+#        publish-ios      → TestFlight (testeurs internes, sans review).
+#        publish-macos    → TestFlight macOS (testeurs internes, sans review).
+#        publish-android  → Play Store piste "internal". — DÉSACTIVÉ
 #
 # Secrets requis (Settings → Secrets and variables → Actions) :
-#   GITLAB_TOKEN                         Project Access Token GitLab (scope
-#                                        write_repository, rôle Maintainer) :
-#                                        semantic-release lit les tags de
-#                                        lecoteaufleuri/app et y pousse vX.Y.Z
-#   (Android désactivé : les 5 secrets ANDROID_* / GCLOUD_* ne servent pas
-#   tant que build-android et publish-android sont commentés.)
-#   ANDROID_KEYSTORE_BASE64              keystore upload (.jks) encodé base64
-#   ANDROID_KEYSTORE_PASSWORD            mot de passe du keystore
-#   ANDROID_KEY_ALIAS                    alias de la clé
-#   ANDROID_KEY_PASSWORD                 mot de passe de la clé
-#   GCLOUD_SERVICE_ACCOUNT_CREDENTIALS   JSON du compte de service Google Play
-#   APP_STORE_CONNECT_KEY_IDENTIFIER     Key ID de la clé API App Store Connect
-#   APP_STORE_CONNECT_ISSUER_ID          Issuer ID du compte App Store Connect
-#   APP_STORE_CONNECT_PRIVATE_KEY        contenu du .p8 de la clé API
-#   CERTIFICATE_PRIVATE_KEY              clé privée du cert Apple Distribution
-#   MAC_INSTALLER_CERTIFICATE_P12_BASE64 cert "3rd Party Mac Developer Installer" (.p12 base64)
-#   MAC_INSTALLER_CERTIFICATE_PASSWORD   mot de passe du .p12 installer
+#   APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID,
+#   APP_STORE_CONNECT_PRIVATE_KEY, CERTIFICATE_PRIVATE_KEY,
+#   MAC_INSTALLER_CERTIFICATE_P12_BASE64, MAC_INSTALLER_CERTIFICATE_PASSWORD
+#   (account-wide, mêmes valeurs que kidflix / songbook / motorz).
+#   Android désactivé : ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+#   ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD et GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+#   ne servent pas tant que build-android / publish-android sont commentés.
 #
 # Variable requise (même écran, onglet « Variables ») :
-#   API_BASE_URL                         origine HTTPS de l'API de prod
-# (APP_STORE_APPLE_ID est écrit en dur dans `env`, plus bas.)
+#   API_BASE_URL                   origine HTTPS de l'API de prod
 #
-# Pré-requis Play Console : l'app `com.lecoteaufleuri.app` doit exister et un
-# premier AAB peut devoir être uploadé à la main avant que l'API accepte les
-# publications automatiques sur la piste internal.
-# Pré-requis App Store Connect : app créée avec le bundle `com.lecoteaufleuri.app`
-# (plateformes iOS + macOS). Les provisioning profiles sont générés au premier
-# build par `fetch-signing-files --create`.
+# Pré-requis App Store Connect : app Le Coteau Fleuri (Apple ID 6838406742,
+# bundle `com.lecoteaufleuri.app`, plateformes iOS + macOS) créée. Les
+# provisioning profiles sont générés au premier build par
+# `fetch-signing-files --create`.
 name: Release
 
 on:
   push:
-    branches:
-      - main
-  # Relance manuelle sur main : même pipeline qu'un push (ex. après un run
-  # annulé). Sur une autre branche, semantic-release ne publie rien.
+    tags:
+      - "v*"
   workflow_dispatch:
 
-# Une release à la fois, sans annulation : on n'interrompt jamais un run en
-# pleine publication store. GitHub ne garde qu'un run en attente — le plus
-# récent, qui contient les commits des précédents.
 concurrency:
-  group: release
-  cancel-in-progress: false
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # Source unique de la version Flutter pour tous les jobs.
@@ -92,51 +68,35 @@ env:
   APP_STORE_APPLE_ID: "6838406742"
   # Origine de l'API de prod (variable GitHub, ex. https://api.example.org),
   # injectée dans chaque build par --dart-define. Sans elle, l'app tournerait
-  # en mode démo en mémoire : le job `version` refuse alors de publier.
+  # en mode démo en mémoire : le job `prepare` refuse alors de publier.
   API_BASE_URL: ${{ vars.API_BASE_URL }}
 
 jobs:
-  version:
-    name: Compute next version
+  prepare:
+    name: Compute version
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     outputs:
-      version: ${{ steps.next.outputs.version }}
-    env:
-      # Accès HTTPS à GitLab pour semantic-release : lecture des tags, et
-      # vérification du droit de push (faite même en --dry-run).
-      GIT_CREDENTIALS: oauth2:${{ secrets.GITLAB_TOKEN }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Tout l'historique : semantic-release remonte jusqu'au dernier tag.
-          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - run: npm ci
-
-      - name: Prochaine version (semantic-release --dry-run)
-        # build/release/version n'est écrit que s'il y a une release à faire
-        # (cf. tool/semantic-release/release-outputs.cjs).
-        id: next
+      - name: Extrait la version depuis le tag (ou pubspec.yaml)
+        # Tag `v1.2.3` → 1.2.3. Pour `workflow_dispatch` (lancement manuel
+        # sans tag), on retombe sur la version de `pubspec.yaml`.
+        id: version
         run: |
-          npx semantic-release --dry-run
-          VERSION=$(cat build/release/version 2>/dev/null || true)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if [ -n "$VERSION" ]; then
-            echo "::notice::Release prévue : v$VERSION"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
           else
-            echo "::notice::Rien à publier — builds sautés"
+            VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//;s/+.*//')
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version: $VERSION"
 
       - name: API de prod configurée
         # Garde-fou : on ne publie jamais une app en mode démo, ni une app qui
         # parlerait à l'API en clair.
-        if: steps.next.outputs.version != ''
         run: |
           case "$API_BASE_URL" in
             https://*) echo "::notice::API : $API_BASE_URL" ;;
@@ -144,25 +104,6 @@ jobs:
               echo "::error::Variable GitHub API_BASE_URL absente ou non HTTPS (« $API_BASE_URL ») — l'app serait publiée en mode démo."
               exit 1 ;;
           esac
-
-  check:
-    name: Analyze & test
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - run: flutter pub get
-
-      - run: flutter analyze
-
-      - run: flutter test
 
   # ═══════════════════════════════════════════════════════════════════════
   # BUILDS — Compilation + signature + upload artifact (pas de publish)
@@ -174,15 +115,14 @@ jobs:
   # décommenter son job, le remettre dans `needs` de build-gate, et (pour
   # Android / Windows / Linux) le téléchargement des assets dans `release`.
   # build-android:
-  #   name: Build Android (${{ needs.version.outputs.version }})
-  #   needs: [version, check]
-  #   if: needs.version.outputs.version != ''
+  #   name: Build Android (${{ needs.prepare.outputs.version }})
+  #   needs: prepare
   #   runs-on: ubuntu-latest
   #   timeout-minutes: 30
 
   #   env:
   #     GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
-  #     VERSION: ${{ needs.version.outputs.version }}
+  #     VERSION: ${{ needs.prepare.outputs.version }}
 
   #   steps:
   #     - uses: actions/checkout@v4
@@ -270,9 +210,8 @@ jobs:
   #         if-no-files-found: error
 
   build-ios:
-    name: Build iOS (${{ needs.version.outputs.version }})
-    needs: [version, check]
-    if: needs.version.outputs.version != ''
+    name: Build iOS (${{ needs.prepare.outputs.version }})
+    needs: prepare
     runs-on: macos-15
     timeout-minutes: 60
 
@@ -281,7 +220,7 @@ jobs:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
       CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
-      VERSION: ${{ needs.version.outputs.version }}
+      VERSION: ${{ needs.prepare.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -365,9 +304,8 @@ jobs:
           if-no-files-found: error
 
   build-macos:
-    name: Build macOS (${{ needs.version.outputs.version }})
-    needs: [version, check]
-    if: needs.version.outputs.version != ''
+    name: Build macOS (${{ needs.prepare.outputs.version }})
+    needs: prepare
     runs-on: macos-15
     timeout-minutes: 60
 
@@ -378,7 +316,7 @@ jobs:
       CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
       MAC_INSTALLER_CERTIFICATE_P12_BASE64: ${{ secrets.MAC_INSTALLER_CERTIFICATE_P12_BASE64 }}
       MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
-      VERSION: ${{ needs.version.outputs.version }}
+      VERSION: ${{ needs.prepare.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -525,14 +463,13 @@ jobs:
   # décommenter son job, le remettre dans `needs` de build-gate, et (pour
   # Android / Windows / Linux) le téléchargement des assets dans `release`.
   # build-windows:
-  #   name: Build Windows (${{ needs.version.outputs.version }})
-  #   needs: [version, check]
-  #   if: needs.version.outputs.version != ''
+  #   name: Build Windows (${{ needs.prepare.outputs.version }})
+  #   needs: prepare
   #   runs-on: windows-latest
   #   timeout-minutes: 30
 
   #   env:
-  #     VERSION: ${{ needs.version.outputs.version }}
+  #     VERSION: ${{ needs.prepare.outputs.version }}
 
   #   steps:
   #     - uses: actions/checkout@v4
@@ -579,16 +516,15 @@ jobs:
   #         if-no-files-found: error
 
   # build-linux:
-  #   name: Build Linux (${{ needs.version.outputs.version }})
-  #   needs: [version, check]
-  #   if: needs.version.outputs.version != ''
+  #   name: Build Linux (${{ needs.prepare.outputs.version }})
+  #   needs: prepare
   #   # ubuntu-22.04 (glibc 2.35) plutôt que ubuntu-latest (24.04 / glibc 2.39)
   #   # pour rester compatible avec des distros utilisateur un peu plus anciennes.
   #   runs-on: ubuntu-22.04
   #   timeout-minutes: 30
 
   #   env:
-  #     VERSION: ${{ needs.version.outputs.version }}
+  #     VERSION: ${{ needs.prepare.outputs.version }}
 
   #   steps:
   #     - uses: actions/checkout@v4
@@ -685,78 +621,31 @@ jobs:
       - run: echo "✓ Tous les builds sont verts — release et publication autorisées"
 
   # ═══════════════════════════════════════════════════════════════════════
-  # TAG — posé sur GitLab seulement maintenant que tous les builds sont verts
-  # ═══════════════════════════════════════════════════════════════════════
-
-  tag:
-    name: Tag v${{ needs.version.outputs.version }} (GitLab)
-    needs: [version, build-gate]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      tagged: ${{ steps.tag.outputs.tagged }}
-    env:
-      GIT_CREDENTIALS: oauth2:${{ secrets.GITLAB_TOKEN }}
-      # Vérifiée par release-outputs.cjs : on ne tague que la version compilée
-      # dans les binaires.
-      EXPECTED_VERSION: ${{ needs.version.outputs.version }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - run: npm ci
-
-      - name: Pose et pousse le tag (semantic-release)
-        # semantic-release tague le commit checkouté (celui qui a été buildé)
-        # et pousse le tag vers repositoryUrl (GitLab, cf. .releaserc.json). Le
-        # miroir GitLab le ramène ensuite ici, sans déclencher ce workflow.
-        id: tag
-        run: |
-          npx semantic-release
-          if [ -f build/release/notes.md ]; then
-            echo "tagged=true" >> "$GITHUB_OUTPUT"
-          else
-            # Seul cas sans erreur ni tag : main a avancé sur GitLab pendant
-            # les builds (semantic-release ne tague que la tête de branche).
-            echo "tagged=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Pas de tag : main a avancé pendant les builds. Le run suivant publiera, commits récents compris."
-          fi
-
-      - name: Upload changelog
-        if: steps.tag.outputs.tagged == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-notes
-          path: build/release/notes.md
-          retention-days: 14
-          if-no-files-found: error
-
-  # ═══════════════════════════════════════════════════════════════════════
-  # GITHUB RELEASE — Créée dès le tag posé, AVANT les stores
+  # GITHUB RELEASE — Créée dès le gate franchi, AVANT les stores
   # ═══════════════════════════════════════════════════════════════════════
 
   release:
     name: Create GitHub Release
-    # NB : `version` DOIT rester dans needs — needs.<job>.outputs n'est exposé
+    # La GitHub Release sort AVANT les publications stores, qui en dépendent
+    # (publish-* → needs: release) : elle n'attend pas le processing Apple.
+    # NB : `prepare` DOIT rester dans needs — needs.<job>.outputs n'est exposé
     # qu'aux dépendances directes ; sans lui, la version serait vide.
-    needs: [version, tag]
-    if: needs.tag.outputs.tagged == 'true'
+    needs: [prepare, build-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
     env:
-      VERSION: ${{ needs.version.outputs.version }}
+      VERSION: ${{ needs.prepare.outputs.version }}
       GH_TOKEN: ${{ github.token }}
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          # `fetch-depth: 0` : le fallback `git describe` (cf. étape "Compose
+          # les notes de release") a besoin des tags et de l'historique.
+          fetch-depth: 0
+
       # On ne télécharge que les artifacts dont on attache des fichiers.
       # Désactivé avec les builds Android / Windows / Linux : sans eux, la
       # release ne porte que le changelog.
@@ -766,17 +655,52 @@ jobs:
       #     pattern: "lecoteaufleuri-{android,windows,linux}"
       #     path: artifacts/
 
-      - name: Download changelog
-        uses: actions/download-artifact@v4
-        with:
-          name: release-notes
-          path: release-notes/
+      - name: Compose les notes de release
+        # semantic-release (côté GitLab CI) écrit le changelog conventionnel
+        # dans le CORPS du commit `chore(release): X.Y.Z` — celui-là même sur
+        # lequel pointe le tag `vX.Y.Z` qui déclenche ce workflow. On le relit
+        # ici plutôt que de publier `release_notes.json` (réservé aux stores).
+        run: |
+          set -euo pipefail
+
+          NOTES=""
+
+          # On teste le SUJET, pas le corps : seul `chore(release):` garantit
+          # que le corps est bien le changelog.
+          case "$(git log -1 --format=%s HEAD)" in
+            "chore(release):"*) NOTES=$(git log -1 --format=%b HEAD) ;;
+          esac
+
+          # Fallback `workflow_dispatch` : HEAD n'est pas un commit de release
+          # → on liste les commits depuis le dernier tag.
+          if [ -z "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
+            PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+            # NB : pas d'apostrophe dans le mot par défaut de `${PREV:-...}`,
+            # bash y ré-interprète les quotes même entre guillemets doubles.
+            echo "HEAD n'est pas un commit de release — fallback depuis ${PREV:-le premier commit}"
+            NOTES=$(git log --no-merges --invert-grep --grep='^chore(release)' \
+              --pretty='* %s (%h)' ${PREV:+"$PREV.."}HEAD)
+          fi
+
+          # Les liens générés par semantic-release pointent vers `origin`,
+          # c'est-à-dire GitLab. Les chemins `/compare/` et `/commit/` sont
+          # identiques chez GitHub → un simple swap d'host suffit.
+          printf '%s\n' "$NOTES" \
+            | sed "s#https://gitlab.com/lecoteaufleuri/app#$GITHUB_SERVER_URL/$GITHUB_REPOSITORY#g" \
+            > notes.md
+
+          echo "--- notes.md ---"
+          cat notes.md
 
       - name: Create GitHub Release
         run: |
+          set -euo pipefail
+
           # Schéma des assets : `lecoteaufleuri-<plateforme>-<version>.<ext>`,
           # en minuscules. AAB, IPA et .pkg ne sont pas attachés : aucun n'est
           # installable par un utilisateur, et ils partent sur les stores.
+          # On n'attache que les assets réellement présents : passer un
+          # argument vide à `gh release create` fait échouer la commande.
           ASSETS=()
           echo "Releasing assets:"
           while IFS= read -r f; do
@@ -792,16 +716,17 @@ jobs:
             echo "::notice::Aucun asset installable : release avec changelog seul"
           fi
 
-          # Le changelog porte les liens de GitLab (dépôt canonique) : les SHAs
-          # sont identiques sur le miroir, on réécrit juste l'hôte.
-          sed 's|https://gitlab\.com/lecoteaufleuri/app|https://github.com/deadLocks21/lecoteaufleuri-app|g' \
-            release-notes/notes.md > notes.md
+          # Tag name : `v<version>` si on est sur un tag, sinon nom synthétique
+          # avec run_number pour éviter toute collision avec un tag git existant
+          # (cas workflow_dispatch, pour tester le pipeline sans tagger).
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            RELEASE_TAG="$GITHUB_REF_NAME"
+          else
+            RELEASE_TAG="dispatch-v${VERSION}-${{ github.run_number }}"
+          fi
+          echo "Release tag: $RELEASE_TAG"
 
-          # `--target` : si le tag posé sur GitLab n'est pas encore arrivé par
-          # le miroir, gh le crée ici, sur le même commit.
-          gh release create "v$VERSION" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+          gh release create "$RELEASE_TAG" \
             --title "Le Coteau Fleuri v$VERSION" \
             --notes-file notes.md \
             "${ASSETS[@]}"

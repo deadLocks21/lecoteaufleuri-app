@@ -67,24 +67,25 @@ dart run flutter_launcher_icons
 
 ## Release
 
-Commits **conventionnels** (`feat:`, `fix:`, …) sur `main` → tout le reste est automatique :
+Même architecture que `kidflix`, `songbook` et `motorz`. Commits **conventionnels** (`feat:`,
+`fix:`, …) sur `main` → tout le reste est automatique :
 
-1. **GitLab CI** (`.gitlab-ci.yml`) : `mirror-to-github` pousse branches et tags vers le miroir
-   [`deadLocks21/lecoteaufleuri-app`](https://github.com/deadLocks21/lecoteaufleuri-app). C'est tout.
-2. **GitHub Actions** (`.github/workflows/release.yml`), sur push de `main` :
-   - `version` : `semantic-release --dry-run` calcule la prochaine version (rien à publier → stop) ;
-     `check` : `flutter analyze` + `flutter test` ;
-   - builds signés iOS et macOS, avec cette version (`--build-name`). Android, Windows et Linux
-     sont **désactivés** pour l'instant (jobs commentés dans le workflow, avec `publish-android`) ;
-   - `tag` : **une fois tous les builds verts**, `semantic-release` pose `vX.Y.Z` sur le commit buildé
-     et le pousse sur GitLab ;
-   - GitHub Release (changelog seul tant qu'Android, Windows et Linux sont désactivés ; sinon
-     APK, .zip Windows, AppImage) → TestFlight (iOS + macOS, testeurs internes).
+1. **GitLab CI** (`.gitlab-ci.yml`) :
+   - `semantic-release` calcule la version depuis les commits, bumpe `version:` dans
+     `pubspec.yaml`, commite `chore(release): X.Y.Z` (changelog dans le corps) et pousse le tag
+     `vX.Y.Z` ;
+   - `mirror-to-github` (stage `.post`) repousse branches et tags vers le miroir
+     [`deadLocks21/lecoteaufleuri-app`](https://github.com/deadLocks21/lecoteaufleuri-app).
+2. **GitHub Actions** (`.github/workflows/release.yml`), sur le tag `v*` mirroré :
+   - `prepare` : version lue dans le tag ; refus de continuer sans `API_BASE_URL` en HTTPS ;
+   - builds signés iOS et macOS. Android, Windows et Linux sont **désactivés** pour l'instant
+     (jobs commentés dans le workflow, avec `publish-android`) ;
+   - `build-gate` puis GitHub Release (changelog du commit `chore(release)` ; sans asset tant
+     qu'Android, Windows et Linux sont désactivés) → TestFlight (iOS + macOS, testeurs internes).
 
-Un build raté ne laisse donc ni tag ni commit à défaire : on corrige, on pousse, la même version est
-retentée (ou « Re-run failed jobs » pour un échec passager). Le tag est la seule source de la version :
-`pubspec.yaml` reste à `0.0.0+1` et n'est jamais bumpé. Si `main` avance pendant les builds, le run
-ne tague pas et le suivant publie, commits récents compris.
+Un build raté laisse le tag en place : on corrige, puis on relance (« Re-run failed jobs ») ou on
+pousse un `fix:` qui produit la version suivante. `workflow_dispatch` relance le pipeline à la main
+sur la version de `pubspec.yaml`, la release prenant alors un nom `dispatch-v…`.
 
 Les textes « What's New » des stores sont dans `release_notes.json` (TestFlight) et
 `release_notes_android.json` (Play Store).
@@ -95,13 +96,13 @@ Les textes « What's New » des stores sont dans `release_notes.json` (TestFligh
 
 | Variable | Contenu |
 |---|---|
+| `GITLAB_TOKEN` | Project Access Token (`lecoteaufleuri/app`, Settings → Access Tokens), scope `write_repository`, rôle Maintainer (masqué) — pousse le commit de release et le tag. Si `main` ou les tags `v*` sont protégés, autoriser ce rôle à y pousser. |
 | `GITHUB_TOKEN` | PAT GitHub (masqué) avec écriture sur `deadLocks21/lecoteaufleuri-app` |
 
 **GitHub** (`deadLocks21/lecoteaufleuri-app`) — Settings → Secrets and variables → Actions :
 
 | Secret | Contenu |
 |---|---|
-| `GITLAB_TOKEN` | Project Access Token GitLab (`lecoteaufleuri/app`), scope `write_repository`, rôle Maintainer — sert à poser les tags. Si les tags `v*` sont protégés côté GitLab, autoriser ce rôle à les créer. |
 | `ANDROID_KEYSTORE_BASE64` | keystore upload (.jks) encodé base64 — *inutile tant qu'Android est désactivé* |
 | `ANDROID_KEYSTORE_PASSWORD` · `ANDROID_KEY_ALIAS` · `ANDROID_KEY_PASSWORD` | accès à la clé upload — *idem* |
 | `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | JSON du compte de service Google Play — *idem* |
@@ -111,7 +112,7 @@ Les textes « What's New » des stores sont dans `release_notes.json` (TestFligh
 
 | Variable | Contenu |
 |---|---|
-| `API_BASE_URL` | Origine HTTPS de l'API de prod, injectée dans tous les builds (`--dart-define`). Absente ou non HTTPS → le job `version` échoue plutôt que de publier l'app en mode démo. |
+| `API_BASE_URL` | Origine HTTPS de l'API de prod, injectée dans tous les builds (`--dart-define`). Absente ou non HTTPS → le job `prepare` échoue plutôt que de publier l'app en mode démo. |
 
 **Stores** : créer l'app `com.lecoteaufleuri.app` dans App Store Connect (plateformes iOS + macOS) ;
 son Apple ID (`6838406742`) est écrit en dur dans le workflow (`APP_STORE_APPLE_ID`). Quand Android
