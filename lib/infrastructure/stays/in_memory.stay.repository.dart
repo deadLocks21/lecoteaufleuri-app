@@ -87,6 +87,27 @@ class InMemoryStayRepository implements StayRepository {
     return stay;
   }
 
+  /// Comme l'API, sauf la règle des dates : les nouvelles et le calendrier en
+  /// mémoire ne se déclarent pas ici.
+  @override
+  Future<Stay> update(String stayId, StayDraft draft) async {
+    if (!_viewer().isAdmin) throw const StayException(StayErrorCode.forbidden);
+    final index = _stays.indexWhere((s) => s.id == stayId);
+    if (index < 0) throw const StayException(StayErrorCode.notFound);
+    if (draft.kind != StayKind.acm && (_staff[stayId]?.isNotEmpty ?? false)) {
+      throw const StayException(StayErrorCode.hasTeam);
+    }
+    final stay = Stay(
+      id: stayId,
+      name: draft.name,
+      kind: draft.kind,
+      startsOn: draft.startsOn,
+      endsOn: draft.endsOn,
+    );
+    _stays[index] = stay;
+    return stay;
+  }
+
   @override
   Future<StayDetail> get(String stayId) async =>
       _detail(_allowed(stayId, _direction));

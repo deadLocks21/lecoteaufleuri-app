@@ -15,6 +15,7 @@ StaysApplicationService staysService(Ref ref) {
   return StaysApplicationService(
     list: ListStaysUseCase(stays),
     create: CreateStayUseCase(stays),
+    update: UpdateStayUseCase(stays),
     get: GetStayUseCase(stays),
     nameStaff: NameStaffUseCase(stays),
     removeStaff: RemoveStaffUseCase(stays),

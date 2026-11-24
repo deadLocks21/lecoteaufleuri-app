@@ -13,6 +13,12 @@ abstract interface class StayRepository {
   /// Admins seulement.
   Future<Stay> create(StayDraft draft);
 
+  /// Le nom, la nature et les dates du séjour [stayId]. Un séjour qui a une
+  /// équipe reste ACM (`hasTeam`), et ses nouvelles dates gardent ses jours
+  /// des nouvelles et ses événements du calendrier (`entriesOutsideDates`).
+  /// Admins seulement.
+  Future<Stay> update(String stayId, StayDraft draft);
+
   /// Le séjour et son équipe : admin, directeurs et adjoints du séjour.
   Future<StayDetail> get(String stayId);
 

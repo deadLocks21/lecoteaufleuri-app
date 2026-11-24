@@ -95,7 +95,7 @@ void main() {
   }) async {
     await tester.tap(find.byKey(const Key('staysSpace')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(Key('stay-$stayId')));
+    await tester.tap(find.byKey(Key('openStay-$stayId')));
     await tester.pumpAndSettle();
     if (team) await openTeam(tester);
   }

@@ -5,28 +5,19 @@ import 'package:lecoteaufleuri/core/application/dtos/stay.dto.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/stays.controller_provider.dart';
-import 'package:lecoteaufleuri/ui/pages/admin/stay_create.page.dart';
+import 'package:lecoteaufleuri/ui/pages/admin/stay_form.page.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_error_message.dart';
 import 'package:lecoteaufleuri/ui/router/app_routes.dart';
 import 'package:lecoteaufleuri/ui/shell/app_shell.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
 /// Les séjours de l'association, pour un admin : du dernier commencé (ou à
-/// venir) au plus ancien, la création d'un nouveau, et l'ouverture de
-/// chacun, avec tous les droits.
+/// venir) au plus ancien, la création d'un nouveau, la modification de
+/// chacun, et l'ouverture de sa page, avec tous les droits.
 class StaysPage extends ConsumerWidget {
   const StaysPage({super.key});
 
-  Future<void> _create(BuildContext context) async {
-    final message = await Navigator.of(
-      context,
-    ).push<String>(MaterialPageRoute(builder: (_) => const StayCreatePage()));
-    if (message != null && context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
+  Future<void> _create(BuildContext context) => openStayForm(context);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,6 +53,19 @@ class StaysPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Le formulaire d'un séjour : nouveau sans [stay], sinon celui-ci à modifier.
+/// Son message de retour s'affiche sur la liste.
+Future<void> openStayForm(BuildContext context, {StayDto? stay}) async {
+  final message = await Navigator.of(
+    context,
+  ).push<String>(MaterialPageRoute(builder: (_) => StayFormPage(stay: stay)));
+  if (message != null && context.mounted) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -103,8 +107,13 @@ class _StayList extends StatelessWidget {
               '${displayStayDates(stay.startsOn, stay.endsOn)} · '
               '${stayKindLabel(stay.kind)}',
             ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go(AppRoutes.stay(stay.id)),
+            trailing: IconButton(
+              key: Key('openStay-${stay.id}'),
+              tooltip: 'Ouvrir le séjour',
+              icon: const Icon(Icons.arrow_forward),
+              onPressed: () => context.go(AppRoutes.stay(stay.id)),
+            ),
+            onTap: () => openStayForm(context, stay: stay),
           ),
       ],
     );

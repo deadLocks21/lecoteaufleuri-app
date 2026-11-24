@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/phone_number.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay.dart';
+import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_team.dart';
 import 'package:lecoteaufleuri/infrastructure/stays/in_memory.stay.repository.dart';
 
@@ -200,4 +202,36 @@ void main() {
       failsWith(StayErrorCode.unknownPhone),
     );
   });
+
+  test(
+    'seul l\'admin modifie un séjour, qui reste ACM s\'il a une équipe',
+    () async {
+      StayDraft draft(StayKind kind) => StayDraft.parse(
+        name: 'Été 2027 — Alpes',
+        kind: kind,
+        startsOn: DateTime(2027, 7, 8),
+        endsOn: DateTime(2027, 7, 24),
+      );
+
+      await expectLater(
+        as(dominique).update(summer, draft(StayKind.acm)),
+        failsWith(StayErrorCode.forbidden),
+      );
+      final admin = as('admin', admin: true);
+      await expectLater(
+        admin.update(summer, draft(StayKind.other)),
+        failsWith(StayErrorCode.hasTeam),
+      );
+
+      final updated = await admin.update(summer, draft(StayKind.acm));
+
+      expect(updated.name, 'Été 2027 — Alpes');
+      expect(updated.startsOn, DateTime.utc(2027, 7, 8));
+      expect((await admin.list()).first.name, 'Été 2027 — Alpes');
+      expect(
+        (await admin.update(weekend, draft(StayKind.acm))).kind,
+        StayKind.acm,
+      );
+    },
+  );
 }

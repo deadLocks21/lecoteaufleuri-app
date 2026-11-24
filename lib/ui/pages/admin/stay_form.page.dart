@@ -1,30 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lecoteaufleuri/core/application/dtos/stay.dto.dart';
 import 'package:lecoteaufleuri/core/domain/exceptions/stay.exception.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay.dart';
 import 'package:lecoteaufleuri/core/domain/model/stay_draft.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/stays.controller_provider.dart';
 import 'package:lecoteaufleuri/ui/pages/admin/stay_error_message.dart';
+import 'package:lecoteaufleuri/ui/router/app_routes.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
-/// Création d'un séjour : nom, nature (ACM ou non) et dates.
+/// Création ou modification d'un séjour : nom, nature (ACM ou non) et dates.
 ///
-/// Se referme en rendant le message à afficher sur la liste.
-class StayCreatePage extends ConsumerStatefulWidget {
-  const StayCreatePage({super.key});
+/// Sans [stay], un nouveau séjour ; avec, ce séjour à modifier, et de quoi
+/// ouvrir sa page. Se referme en rendant le message à afficher sur la liste.
+class StayFormPage extends ConsumerStatefulWidget {
+  final StayDto? stay;
+
+  const StayFormPage({super.key, this.stay});
 
   @override
-  ConsumerState<StayCreatePage> createState() => _StayCreatePageState();
+  ConsumerState<StayFormPage> createState() => _StayFormPageState();
 }
 
-class _StayCreatePageState extends ConsumerState<StayCreatePage> {
-  final _name = TextEditingController();
-  final _dates = TextEditingController();
-  StayKind? _kind;
-  DateTimeRange? _range;
+class _StayFormPageState extends ConsumerState<StayFormPage> {
+  late final _name = TextEditingController(text: widget.stay?.name);
+  late final _dates = TextEditingController(
+    text: switch (widget.stay) {
+      final StayDto stay => displayStayDates(stay.startsOn, stay.endsOn),
+      null => null,
+    },
+  );
+  late StayKind? _kind = widget.stay?.kind;
+  late DateTimeRange? _range = switch (widget.stay) {
+    final StayDto stay => DateTimeRange(
+      start: _localDay(stay.startsOn),
+      end: _localDay(stay.endsOn),
+    ),
+    null => null,
+  };
   bool _busy = false;
   StayErrorCode? _error;
+
+  bool get _editing => widget.stay != null;
+
+  /// Un jour du séjour (minuit UTC) au jour local que le calendrier affiche.
+  static DateTime _localDay(DateTime day) =>
+      DateTime(day.year, day.month, day.day);
 
   @override
   void dispose() {
@@ -41,10 +64,13 @@ class _StayCreatePageState extends ConsumerState<StayCreatePage> {
 
   Future<void> _pickDates() async {
     final today = DateUtils.dateOnly(DateTime.now());
+    // Un séjour tout juste passé peut encore s'enregistrer ; un séjour plus
+    // ancien se corrige depuis ses propres dates.
+    final earliest = DateTime(today.year - 1);
+    final start = _range?.start;
     final range = await showDateRangePicker(
       context: context,
-      // Un séjour tout juste passé peut encore s'enregistrer.
-      firstDate: DateTime(today.year - 1),
+      firstDate: start != null && start.isBefore(earliest) ? start : earliest,
       lastDate: DateTime(today.year + 5, 12, 31),
       initialDateRange: _range,
       currentDate: today,
@@ -67,17 +93,25 @@ class _StayCreatePageState extends ConsumerState<StayCreatePage> {
       _busy = true;
       _error = null;
     });
-    final (_, error) = await ref
-        .read(staysControllerProvider.notifier)
-        .create(
-          name: _name.text,
-          kind: _kind,
-          startsOn: _range?.start,
-          endsOn: _range?.end,
-        );
+    final controller = ref.read(staysControllerProvider.notifier);
+    final stay = widget.stay;
+    final (_, error) = stay == null
+        ? await controller.create(
+            name: _name.text,
+            kind: _kind,
+            startsOn: _range?.start,
+            endsOn: _range?.end,
+          )
+        : await controller.edit(
+            stay.id,
+            name: _name.text,
+            kind: _kind,
+            startsOn: _range?.start,
+            endsOn: _range?.end,
+          );
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop('Séjour créé.');
+      Navigator.of(context).pop(_editing ? 'Séjour modifié.' : 'Séjour créé.');
       return;
     }
     setState(() {
@@ -86,25 +120,34 @@ class _StayCreatePageState extends ConsumerState<StayCreatePage> {
     });
   }
 
+  /// La page du séjour, comme sa ligne dans « Mes séjours » : l'adresse
+  /// remplace l'administration.
+  void _openStay() => context.go(AppRoutes.stay(widget.stay!.id));
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final error = _error;
-    String? errorFor(StayErrorCode code) =>
-        error == code ? stayErrorMessage(code) : null;
+    String? errorFor(Set<StayErrorCode> codes) =>
+        codes.contains(error) ? stayErrorMessage(error!) : null;
+    const kindErrors = {StayErrorCode.invalidKind, StayErrorCode.hasTeam};
+    const datesErrors = {
+      StayErrorCode.invalidDates,
+      StayErrorCode.entriesOutsideDates,
+    };
     final otherError =
         error == null ||
-            const {
-              StayErrorCode.invalidName,
-              StayErrorCode.invalidKind,
-              StayErrorCode.invalidDates,
-            }.contains(error)
+            error == StayErrorCode.invalidName ||
+            kindErrors.contains(error) ||
+            datesErrors.contains(error)
         ? null
         : stayErrorMessage(error);
-    final kindError = errorFor(StayErrorCode.invalidKind);
+    final kindError = errorFor(kindErrors);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nouveau séjour')),
+      appBar: AppBar(
+        title: Text(_editing ? 'Modifier le séjour' : 'Nouveau séjour'),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
@@ -124,7 +167,7 @@ class _StayCreatePageState extends ConsumerState<StayCreatePage> {
                   labelText: 'Nom du séjour',
                   hintText: 'Été 2027 — Pyrénées',
                   border: const OutlineInputBorder(),
-                  errorText: errorFor(StayErrorCode.invalidName),
+                  errorText: errorFor(const {StayErrorCode.invalidName}),
                 ),
               ),
               const SizedBox(height: 24),
@@ -179,7 +222,8 @@ class _StayCreatePageState extends ConsumerState<StayCreatePage> {
                   hintText: 'Premier et dernier jour',
                   prefixIcon: const Icon(Icons.date_range),
                   border: const OutlineInputBorder(),
-                  errorText: errorFor(StayErrorCode.invalidDates),
+                  errorText: errorFor(datesErrors),
+                  errorMaxLines: 3,
                 ),
               ),
               if (otherError != null) ...[
@@ -196,8 +240,17 @@ class _StayCreatePageState extends ConsumerState<StayCreatePage> {
               FilledButton(
                 key: const Key('saveStayButton'),
                 onPressed: _busy ? null : _save,
-                child: const Text('Créer le séjour'),
+                child: Text(_editing ? 'Enregistrer' : 'Créer le séjour'),
               ),
+              if (_editing) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const Key('openStayPageButton'),
+                  onPressed: _busy ? null : _openStay,
+                  icon: const Icon(Icons.cabin_outlined),
+                  label: const Text('Ouvrir la page du séjour'),
+                ),
+              ],
             ],
           ),
         ),

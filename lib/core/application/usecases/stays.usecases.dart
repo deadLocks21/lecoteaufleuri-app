@@ -35,3 +35,26 @@ class CreateStayUseCase {
     return StayDto.fromDomain(await _stays.create(draft));
   }
 }
+
+/// Modifie un séjour, saisie vérifiée comme à la création.
+class UpdateStayUseCase {
+  final StayRepository _stays;
+
+  UpdateStayUseCase(this._stays);
+
+  Future<StayDto> execute(
+    String stayId, {
+    required String name,
+    required StayKind? kind,
+    required DateTime? startsOn,
+    required DateTime? endsOn,
+  }) async {
+    final draft = StayDraft.parse(
+      name: name,
+      kind: kind,
+      startsOn: startsOn,
+      endsOn: endsOn,
+    );
+    return StayDto.fromDomain(await _stays.update(stayId, draft));
+  }
+}

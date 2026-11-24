@@ -28,6 +28,16 @@ class DioStayRepository implements StayRepository {
   );
 
   @override
+  Future<Stay> update(String stayId, StayDraft draft) async => _decode(
+    StayCodec.fromJson,
+    await _send(
+      'PUT',
+      ApiEndpoints.adminStay(stayId),
+      data: StayCodec.toJson(draft),
+    ),
+  );
+
+  @override
   Future<StayDetail> get(String stayId) async =>
       _detail(await _send('GET', ApiEndpoints.stay(stayId)));
 
@@ -173,6 +183,8 @@ class DioStayRepository implements StayRepository {
       'not_an_acm_stay' => StayErrorCode.notAcm,
       'already_director' => StayErrorCode.alreadyDirector,
       'already_deputy' => StayErrorCode.alreadyDeputy,
+      'stay_has_team' => StayErrorCode.hasTeam,
+      'entries_outside_stay_dates' => StayErrorCode.entriesOutsideDates,
       'invalid_token' => StayErrorCode.sessionExpired,
       _ => StayErrorCode.unknown,
     });

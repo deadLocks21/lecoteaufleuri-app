@@ -60,6 +60,27 @@ void main() {
     });
   });
 
+  test('modifie un séjour sur sa route', () async {
+    final adapter = FakeHttpAdapter((_) => FakeHttpAdapter.json(stayJson));
+
+    final stay = await DioStayRepository(
+      dioWith(adapter),
+    ).update('5d1e0000-0000-4000-8000-000000000001', draft);
+
+    expect(stay.name, 'Été 2027');
+    expect(adapter.requests.single.method, 'PUT');
+    expect(
+      adapter.requests.single.path,
+      '/api/admin/stays/5d1e0000-0000-4000-8000-000000000001',
+    );
+    expect(adapter.requests.single.data, {
+      'name': 'Été 2027',
+      'kind': 'acm',
+      'starts_on': '2027-07-10',
+      'ends_on': '2027-07-24',
+    });
+  });
+
   test('traduit les codes d\'erreur de l\'API', () async {
     for (final (status, code, expected) in [
       (403, 'forbidden', StayErrorCode.forbidden),
@@ -72,6 +93,8 @@ void main() {
       (409, 'not_an_acm_stay', StayErrorCode.notAcm),
       (409, 'already_director', StayErrorCode.alreadyDirector),
       (409, 'already_deputy', StayErrorCode.alreadyDeputy),
+      (409, 'stay_has_team', StayErrorCode.hasTeam),
+      (409, 'entries_outside_stay_dates', StayErrorCode.entriesOutsideDates),
       (400, 'invalid_user_name', StayErrorCode.invalidPersonName),
       (400, 'invalid_phone_format', StayErrorCode.invalidPhone),
       (500, 'boom', StayErrorCode.unknown),

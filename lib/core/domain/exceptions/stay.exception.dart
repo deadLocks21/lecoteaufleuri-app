@@ -17,6 +17,14 @@ enum StayErrorCode {
   /// Dates manquantes, ou fin avant le début.
   invalidDates,
 
+  /// Passer hors ACM un séjour qui a encore des directeurs, adjoints ou
+  /// animateurs.
+  hasTeam,
+
+  /// Des jours des nouvelles ou des événements du calendrier tomberaient hors
+  /// des nouvelles dates du séjour.
+  entriesOutsideDates,
+
   /// Le numéro saisi n'est pas un mobile français.
   invalidPhone,
 

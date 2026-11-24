@@ -169,6 +169,79 @@ void main() {
     },
   );
 
+  testWidgets('l\'admin modifie un séjour depuis la liste', (tester) async {
+    await launchAs(tester, demo);
+    await tester.tap(find.byKey(const Key('staysSpace')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Week-end des animateurs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Modifier le séjour'), findsOneWidget);
+    expect(find.text('Du 13 au 14 mars 2027'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('stayNameField')),
+      'Week-end de formation',
+    );
+    await tester.tap(find.text('ACM'));
+    await tester.pumpAndSettle();
+    await pickDates(tester, '12/03/2027', '14/03/2027');
+    await save(tester);
+
+    expect(find.text('Séjour modifié.'), findsOneWidget);
+    expect(find.text('Week-end de formation'), findsOneWidget);
+    expect(find.text('Du 12 au 14 mars 2027 · ACM'), findsOneWidget);
+  });
+
+  testWidgets(
+    'un séjour qui a une équipe ne passe pas hors ACM, et l\'erreur le dit',
+    (tester) async {
+      await launchAs(tester, demo);
+      await tester.tap(find.byKey(const Key('staysSpace')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Été 2027 — Pyrénées'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Hors ACM'));
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      expect(find.textContaining('Ce séjour a une équipe'), findsOneWidget);
+      expect(find.text('Modifier le séjour'), findsOneWidget);
+    },
+  );
+
+  testWidgets('la fiche d\'un séjour ouvre sa page', (tester) async {
+    await launchAs(tester, demo);
+    await tester.tap(find.byKey(const Key('staysSpace')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Été 2027 — Pyrénées'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('openStayPageButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Modifier le séjour'), findsNothing);
+    expect(find.text('Du 10 au 24 juillet 2027'), findsOneWidget);
+    expect(find.text('Équipe'), findsWidgets);
+  });
+
+  testWidgets('la liste ouvre directement la page d\'un séjour', (
+    tester,
+  ) async {
+    await launchAs(tester, demo);
+    await tester.tap(find.byKey(const Key('staysSpace')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const Key('openStay-5d1e0000-0000-4000-8000-000000000002')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Modifier le séjour'), findsNothing);
+    expect(find.text('Du 13 au 14 mars 2027'), findsOneWidget);
+  });
+
   testWidgets('un refus du serveur s\'affiche à la place de la liste', (
     tester,
   ) async {
@@ -198,6 +271,10 @@ class _FailingStayRepository implements StayRepository {
 
   @override
   Future<Stay> create(StayDraft draft) async => throw StayException(code);
+
+  @override
+  Future<Stay> update(String stayId, StayDraft draft) async =>
+      throw StayException(code);
 
   @override
   Future<StayDetail> get(String stayId) async => throw StayException(code);

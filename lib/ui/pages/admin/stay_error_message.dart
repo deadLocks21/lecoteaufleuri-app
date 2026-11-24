@@ -13,6 +13,12 @@ String stayErrorMessage(StayErrorCode code) => switch (code) {
   StayErrorCode.invalidPersonName => 'Le prénom et le nom sont obligatoires.',
   StayErrorCode.notAcm =>
     'Seul un séjour ACM a une équipe (directeurs, adjoints, animateurs).',
+  StayErrorCode.hasTeam =>
+    'Ce séjour a une équipe : retirez ses directeurs, adjoints et animateurs '
+        'avant de le passer hors ACM.',
+  StayErrorCode.entriesOutsideDates =>
+    'Des jours des nouvelles ou des événements du calendrier tombent hors de '
+        'ces dates : déplacez-les ou supprimez-les d\'abord.',
   StayErrorCode.alreadyDirector => 'Cette personne dirige déjà le séjour.',
   StayErrorCode.alreadyDeputy =>
     'Cette personne fait déjà partie des adjoints du séjour.',
