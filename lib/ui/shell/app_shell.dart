@@ -12,6 +12,7 @@ import 'package:lecoteaufleuri/infrastructure/providers/stays.service_provider.d
 import 'package:lecoteaufleuri/ui/pages/stays/stay_modules.dart';
 import 'package:lecoteaufleuri/ui/router/app_routes.dart';
 import 'package:lecoteaufleuri/ui/theme/page_transitions.dart';
+import 'package:lecoteaufleuri/ui/widgets/logout.dart';
 import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 
 /// Comment le cadre présente la navigation, selon la largeur de la fenêtre.
@@ -334,8 +335,7 @@ class _NavDrawer extends ConsumerWidget {
               key: const Key('logoutButton'),
               leading: const Icon(Icons.logout),
               title: const Text('Se déconnecter'),
-              onTap: () =>
-                  ref.read(sessionControllerProvider.notifier).logout(),
+              onTap: () => confirmLogout(context, ref),
             ),
           ],
         ),
@@ -520,7 +520,7 @@ class _SideNav extends ConsumerWidget {
             icon: Icons.logout,
             label: 'Se déconnecter',
             extended: extended,
-            onTap: () => ref.read(sessionControllerProvider.notifier).logout(),
+            onTap: () => confirmLogout(context, ref),
           ),
           const SizedBox(height: 8),
         ],

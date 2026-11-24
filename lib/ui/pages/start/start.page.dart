@@ -7,6 +7,7 @@ import 'package:lecoteaufleuri/infrastructure/providers/my_stays.provider.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/session.controller_provider.dart';
 import 'package:lecoteaufleuri/infrastructure/providers/stays.service_provider.dart';
 import 'package:lecoteaufleuri/ui/router/app_routes.dart';
+import 'package:lecoteaufleuri/ui/widgets/logout.dart';
 
 /// L'entrée de l'app connectée : elle ouvre le séjour du moment (cf.
 /// `defaultStay`), ou l'administration pour un admin sans séjour. Sans l'un
@@ -71,8 +72,7 @@ class _StartPageState extends ConsumerState<StartPage> {
             key: const Key('logoutButton'),
             icon: const Icon(Icons.logout),
             tooltip: 'Se déconnecter',
-            onPressed: () =>
-                ref.read(sessionControllerProvider.notifier).logout(),
+            onPressed: () => confirmLogout(context, ref),
           ),
         ],
       ),

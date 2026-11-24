@@ -72,8 +72,18 @@ void main() {
     expect(find.byKey(const Key('staysSpace')), findsOneWidget);
     expect(await sessions.read(), isNotNull);
 
+    // Un appui malheureux ne déconnecte pas : il faut confirmer.
     await tester.tap(find.byKey(const Key('logoutButton')));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Annuler'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('staysSpace')), findsOneWidget);
+    expect(await sessions.read(), isNotNull);
+
+    await tester.tap(find.byKey(const Key('logoutButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmLogout')));
+    await tester.pumpAndSettle();
     expect(find.text('Recevoir le code'), findsOneWidget);
     expect(await sessions.read(), isNull);
   });
