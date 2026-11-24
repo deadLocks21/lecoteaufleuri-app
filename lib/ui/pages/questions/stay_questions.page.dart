@@ -217,8 +217,44 @@ class _StayQuestionsPageState extends ConsumerState<StayQuestionsPage> {
             question: q,
             categoryName: names[q.categoryId],
             onTap: () => _open(context, q, rights),
+            onResolve: rights.direction
+                ? () => _resolve(context, q, !q.isResolved)
+                : null,
           ),
       ],
+    );
+  }
+
+  Future<void> _resolve(
+    BuildContext context,
+    QuestionDto q,
+    bool resolved,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref
+        .read(stayQuestionsControllerProvider(widget.stayId).notifier)
+        .resolve(q.id, resolved);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          error != null
+              ? questionsErrorMessage(error)
+              : resolved
+              ? 'Question résolue.'
+              : 'Question rouverte.',
+        ),
+        action: error == null
+            ? SnackBarAction(
+                label: 'Annuler',
+                onPressed: () => ref
+                    .read(
+                      stayQuestionsControllerProvider(widget.stayId).notifier,
+                    )
+                    .resolve(q.id, !resolved),
+              )
+            : null,
+      ),
     );
   }
 
@@ -239,10 +275,14 @@ class _QuestionTile extends StatelessWidget {
   final String? categoryName;
   final VoidCallback onTap;
 
+  /// Marque résolue ou rouvre d'un geste (la direction) ; null : pas de bouton.
+  final VoidCallback? onResolve;
+
   const _QuestionTile({
     required this.question,
     required this.categoryName,
     required this.onTap,
+    this.onResolve,
   });
 
   @override
@@ -276,7 +316,22 @@ class _QuestionTile extends StatelessWidget {
                       style: theme.textTheme.titleMedium,
                     ),
                   ),
-                  if (question.isResolved)
+                  if (onResolve != null)
+                    IconButton(
+                      key: Key('quickResolve-${question.id}'),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: question.isResolved
+                          ? 'Rouvrir'
+                          : 'Marquer résolue',
+                      onPressed: onResolve,
+                      isSelected: question.isResolved,
+                      selectedIcon: Icon(
+                        Icons.check_circle,
+                        color: theme.colorScheme.primary,
+                      ),
+                      icon: const Icon(Icons.check_circle_outline),
+                    )
+                  else if (question.isResolved)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
                       child: Icon(

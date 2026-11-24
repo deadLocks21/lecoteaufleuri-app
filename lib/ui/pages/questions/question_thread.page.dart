@@ -73,7 +73,26 @@ class _QuestionThreadPageState extends ConsumerState<QuestionThreadPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Question'),
-        actions: [if (question != null) _actions(context, question, rights)],
+        actions: [
+          if (question != null && !question.isDeleted && rights.direction)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: question.isResolved
+                  ? OutlinedButton.icon(
+                      key: const Key('resolveButton'),
+                      onPressed: () => _do(() => _controller.resolve(false)),
+                      icon: const Icon(Icons.replay),
+                      label: const Text('Rouvrir'),
+                    )
+                  : FilledButton.tonalIcon(
+                      key: const Key('resolveButton'),
+                      onPressed: () => _do(() => _controller.resolve(true)),
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Résolue'),
+                    ),
+            ),
+          if (question != null) _actions(context, question, rights),
+        ],
       ),
       body: switch ((thread.value, thread.error)) {
         (final QuestionDto q, _) => Column(
@@ -218,16 +237,6 @@ class _QuestionThreadPageState extends ConsumerState<QuestionThreadPage> {
           child: ListTile(
             leading: Icon(q.isPublic ? Icons.lock_outline : Icons.public),
             title: Text(q.isPublic ? 'Rendre privée' : 'Rendre publique…'),
-          ),
-        ),
-        PopupMenuItem(
-          key: const Key('toggleResolved'),
-          value: () => _do(() => _controller.resolve(!q.isResolved)),
-          child: ListTile(
-            leading: Icon(
-              q.isResolved ? Icons.replay : Icons.check_circle_outline,
-            ),
-            title: Text(q.isResolved ? 'Rouvrir' : 'Marquer résolue'),
           ),
         ),
       ],

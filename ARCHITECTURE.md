@@ -215,10 +215,12 @@ décide** : rien de ce que l'app masque n'est protégé par ce seul masquage.
   répondent la direction et l'auteur de la question. Le menu suit
   `QuestionsRights` (direction, directeur, auteur) : modifier, classer,
   rendre publique (en taisant ou non le nom d'un animateur) ou privée,
-  marquer résolue, supprimer (réversible), restaurer, supprimer
+  supprimer (réversible), restaurer, supprimer
   définitivement (un directeur). La direction gère les catégories (aussi à
   la volée, depuis le choix d'une catégorie) et rouvre les questions
-  supprimées. En mémoire, `InMemoryQuestionsRepository` rejoue les règles de
+  supprimées. Marquer résolue (ou rouvrir) se fait d'un geste : la coche de
+  chaque carte de la liste (avec « Annuler » dans le message) ou le bouton
+  « Résolue » en tête du fil. En mémoire, `InMemoryQuestionsRepository` rejoue les règles de
   l'API, avec trois questions sur l'été 2027 dont une anonyme.
 - **L'app est en français**, widgets Material compris (`flutter_localizations`) :
   en test, `tester.pageBack()` ne trouve donc pas l'infobulle « Back », on

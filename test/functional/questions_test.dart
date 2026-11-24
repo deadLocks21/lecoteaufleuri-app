@@ -123,7 +123,7 @@ void main() {
 
       await tapKey(tester, 'questionActions');
       expect(find.byKey(const Key('changeVisibility')), findsNothing);
-      expect(find.byKey(const Key('toggleResolved')), findsNothing);
+      expect(find.byKey(const Key('resolveButton')), findsNothing);
       expect(find.byKey(const Key('editQuestion')), findsOneWidget);
     },
   );
@@ -156,9 +156,21 @@ void main() {
       // La direction voit toujours le nom.
       expect(find.textContaining('Sacha Bernard'), findsOneWidget);
 
-      await tapKey(tester, 'questionActions');
-      await tapKey(tester, 'toggleResolved');
+      await tapKey(tester, 'resolveButton');
       expect(find.byKey(const Key('resolvedBadge')), findsOneWidget);
+      expect(find.text('Rouvrir'), findsOneWidget);
+
+      // Depuis la liste, d'un geste : rouverte, puis résolue de nouveau.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'quickResolve-${asked.id}');
+      expect(find.text('Question rouverte.'), findsOneWidget);
+      expect((await questions.question(summer, asked.id)).resolvedAt, isNull);
+      await tapKey(tester, 'quickResolve-${asked.id}');
+      expect(
+        (await questions.question(summer, asked.id)).resolvedAt,
+        isNotNull,
+      );
     },
   );
 }

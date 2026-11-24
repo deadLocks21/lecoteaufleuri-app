@@ -51,6 +51,27 @@ class StayQuestionsController extends _$StayQuestionsController {
     }
   }
 
+  /// La direction marque la question résolue, ou la rouvre, depuis la
+  /// liste. Rend null, ou la raison de l'échec.
+  Future<QuestionsErrorCode?> resolve(String questionId, bool resolved) async {
+    try {
+      upsert(await _service.thread.resolve(stayId, questionId, resolved));
+      return null;
+    } on QuestionsException catch (e) {
+      if (const {
+            QuestionsErrorCode.questionNotFound,
+            QuestionsErrorCode.forbidden,
+          }.contains(e.code) &&
+          ref.mounted) {
+        ref.invalidateSelf();
+      }
+      return e.code;
+    } catch (e, stack) {
+      debugPrint('questions : échec inattendu : $e\n$stack');
+      return QuestionsErrorCode.unknown;
+    }
+  }
+
   /// La question (changée ailleurs, dans son fil) prend sa place, en tête.
   void upsert(QuestionDto question) {
     if (!ref.mounted || state.value == null) return;
