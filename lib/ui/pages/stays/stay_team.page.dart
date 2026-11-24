@@ -13,24 +13,61 @@ import 'package:lecoteaufleuri/ui/widgets/stay_display.dart';
 /// Le module Équipe d'un séjour : ses directeurs, ses adjoints et ses
 /// animateurs, pour l'admin, ses directeurs et ses adjoints.
 ///
-/// Les boutons suivent ce que l'API dit permettre au compte connecté :
+/// La page s'ouvre en lecture seule ; « Modifier », dans la barre du haut,
+/// passe en mode édition, où l'on ajoute ou retire des membres, et
+/// « Terminé » en revient. Le bouton n'apparaît que si le compte connecté
+/// peut changer une partie de l'équipe.
+///
+/// En édition, les boutons suivent ce que l'API dit permettre au compte
+/// connecté :
 /// l'admin nomme ou retire les directeurs, l'admin et les directeurs nomment
 /// ou retirent les adjoints, et tous trois ajoutent ou retirent les
 /// animateurs. L'API revérifie chaque action.
-class StayTeamPage extends ConsumerWidget {
+class StayTeamPage extends ConsumerStatefulWidget {
   final String stayId;
 
   const StayTeamPage({super.key, required this.stayId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StayTeamPage> createState() => _StayTeamPageState();
+}
+
+class _StayTeamPageState extends ConsumerState<StayTeamPage> {
+  bool _editing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final stayId = widget.stayId;
     final detail = ref.watch(stayDetailControllerProvider(stayId));
     final value = detail.value;
+    final canEdit =
+        value != null &&
+        value.stay.kind == StayKind.acm &&
+        (value.canManageDirectors ||
+            value.canManageDeputies ||
+            value.canManageAnimators);
+    // Des droits perdus en cours de route referment l'édition.
+    final editing = _editing && canEdit;
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: shellShowsBack(context),
         title: const Text('Équipe'),
+        actions: [
+          if (editing)
+            TextButton(
+              key: const Key('doneEditingTeamButton'),
+              onPressed: () => setState(() => _editing = false),
+              child: const Text('Terminé'),
+            )
+          else if (canEdit)
+            IconButton(
+              key: const Key('editTeamButton'),
+              tooltip: 'Modifier l\'équipe',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => setState(() => _editing = true),
+            ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -39,6 +76,7 @@ class StayTeamPage extends ConsumerWidget {
             (final StayDetailDto detail, _) => _StayView(
               stayId: stayId,
               detail: detail,
+              editing: editing,
             ),
             (_, final Object error) => _ErrorView(
               message: stayErrorMessage(
@@ -59,7 +97,14 @@ class _StayView extends ConsumerWidget {
   final String stayId;
   final StayDetailDto detail;
 
-  const _StayView({required this.stayId, required this.detail});
+  /// En lecture seule, ni bouton d'ajout ni bouton de retrait.
+  final bool editing;
+
+  const _StayView({
+    required this.stayId,
+    required this.detail,
+    required this.editing,
+  });
 
   Future<void> _name(BuildContext context, StaffRole role) async {
     final message = await Navigator.of(context).push<String>(
@@ -233,7 +278,7 @@ class _StayView extends ConsumerWidget {
             role: StaffRole.director,
             title: 'Directeurs',
             members: detail.directors,
-            canManage: detail.canManageDirectors,
+            canManage: editing && detail.canManageDirectors,
           ),
           const SizedBox(height: 16),
           ..._section(
@@ -242,7 +287,7 @@ class _StayView extends ConsumerWidget {
             role: StaffRole.deputy,
             title: 'Adjoints',
             members: detail.deputies,
-            canManage: detail.canManageDeputies,
+            canManage: editing && detail.canManageDeputies,
           ),
           const SizedBox(height: 16),
           ..._section(
@@ -251,7 +296,7 @@ class _StayView extends ConsumerWidget {
             role: StaffRole.animator,
             title: 'Animateurs',
             members: detail.animators,
-            canManage: detail.canManageAnimators,
+            canManage: editing && detail.canManageAnimators,
           ),
         ],
       ],

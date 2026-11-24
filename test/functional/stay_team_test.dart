@@ -76,10 +76,15 @@ void main() {
     matching: find.text(text),
   );
 
-  /// Ouvre le module Équipe du séjour où l'app s'est ouverte.
-  Future<void> openTeam(WidgetTester tester) async {
+  /// Ouvre le module Équipe du séjour où l'app s'est ouverte, puis passe en
+  /// mode édition si [edit].
+  Future<void> openTeam(WidgetTester tester, {bool edit = true}) async {
     await tester.tap(find.byKey(const Key('teamModule')));
     await tester.pumpAndSettle();
+    if (edit) {
+      await tester.tap(find.byKey(const Key('editTeamButton')));
+      await tester.pumpAndSettle();
+    }
   }
 
   /// Ouvre un séjour depuis l'administration, puis son équipe si [team].
@@ -107,13 +112,31 @@ void main() {
 
     expect(inSwitcher('Du 10 au 24 juillet 2027'), findsOneWidget);
     expect(inSwitcher('Administration'), findsOneWidget);
-    await openTeam(tester);
+    await openTeam(tester, edit: false);
     expect(find.text('Dominique Durand'), findsOneWidget);
+    expect(find.byKey(const Key('noDeputies')), findsOneWidget);
+    // En lecture seule d'abord : ni ajout ni retrait.
+    expect(find.byKey(const Key('addDirectorButton')), findsNothing);
+    expect(find.byKey(const Key('removeDirector-$dominiqueId')), findsNothing);
+    expect(find.byKey(const Key('addAnimatorButton')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('editTeamButton')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('removeDirector-$dominiqueId')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('noDeputies')), findsOneWidget);
     expect(find.byKey(const Key('addDirectorButton')), findsOneWidget);
     expect(find.byKey(const Key('addDeputyButton')), findsOneWidget);
     expect(find.byKey(const Key('noAnimators')), findsOneWidget);
     expect(find.byKey(const Key('addAnimatorButton')), findsOneWidget);
+
+    // « Terminé » revient à la lecture seule.
+    await tester.tap(find.byKey(const Key('doneEditingTeamButton')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('addDirectorButton')), findsNothing);
+    expect(find.byKey(const Key('editTeamButton')), findsOneWidget);
   });
 
   testWidgets('un séjour hors ACM n\'a pas de direction', (tester) async {
