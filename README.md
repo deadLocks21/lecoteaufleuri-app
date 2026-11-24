@@ -78,10 +78,9 @@ Même architecture que `kidflix`, `songbook` et `motorz`. Commits **conventionne
      [`deadLocks21/lecoteaufleuri-app`](https://github.com/deadLocks21/lecoteaufleuri-app).
 2. **GitHub Actions** (`.github/workflows/release.yml`), sur le tag `v*` mirroré :
    - `prepare` : version lue dans le tag ; refus de continuer sans `API_BASE_URL` en HTTPS ;
-   - builds signés iOS et macOS. Android, Windows et Linux sont **désactivés** pour l'instant
-     (jobs commentés dans le workflow, avec `publish-android`) ;
-   - `build-gate` puis GitHub Release (changelog du commit `chore(release)` ; sans asset tant
-     qu'Android, Windows et Linux sont désactivés) → TestFlight (iOS + macOS, testeurs internes).
+   - builds signés iOS, Android, macOS, Windows et Linux ;
+   - `build-gate` puis GitHub Release (changelog du commit `chore(release)` ; APK, .zip Windows,
+     AppImage) → Play Store (piste internal) et TestFlight (iOS + macOS, testeurs internes).
 
 Un build raté laisse le tag en place : on corrige, puis on relance (« Re-run failed jobs ») ou on
 pousse un `fix:` qui produit la version suivante. `workflow_dispatch` relance le pipeline à la main
@@ -103,9 +102,9 @@ Les textes « What's New » des stores sont dans `release_notes.json` (TestFligh
 
 | Secret | Contenu |
 |---|---|
-| `ANDROID_KEYSTORE_BASE64` | keystore upload (.jks) encodé base64 — *inutile tant qu'Android est désactivé* |
-| `ANDROID_KEYSTORE_PASSWORD` · `ANDROID_KEY_ALIAS` · `ANDROID_KEY_PASSWORD` | accès à la clé upload — *idem* |
-| `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | JSON du compte de service Google Play — *idem* |
+| `ANDROID_KEYSTORE_BASE64` | keystore upload (.jks) encodé base64 |
+| `ANDROID_KEYSTORE_PASSWORD` · `ANDROID_KEY_ALIAS` · `ANDROID_KEY_PASSWORD` | accès à la clé upload |
+| `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | JSON du compte de service Google Play |
 | `APP_STORE_CONNECT_KEY_IDENTIFIER` · `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_PRIVATE_KEY` | clé API App Store Connect |
 | `CERTIFICATE_PRIVATE_KEY` | clé privée du certificat Apple Distribution |
 | `MAC_INSTALLER_CERTIFICATE_P12_BASE64` · `MAC_INSTALLER_CERTIFICATE_PASSWORD` | certificat « 3rd Party Mac Developer Installer » |
@@ -115,7 +114,7 @@ Les textes « What's New » des stores sont dans `release_notes.json` (TestFligh
 | `API_BASE_URL` | Origine HTTPS de l'API de prod, injectée dans tous les builds (`--dart-define`). Absente ou non HTTPS → le job `prepare` échoue plutôt que de publier l'app en mode démo. |
 
 **Stores** : créer l'app `com.lecoteaufleuri.app` dans App Store Connect (plateformes iOS + macOS) ;
-son Apple ID (`6838406742`) est écrit en dur dans le workflow (`APP_STORE_APPLE_ID`). Quand Android
-reviendra : la créer aussi dans la Play Console (un premier AAB peut devoir être uploadé à la main).
+son Apple ID (`6838406742`) est écrit en dur dans le workflow (`APP_STORE_APPLE_ID`). La créer aussi
+dans la Play Console (un premier AAB peut devoir être uploadé à la main).
 
 En local, sans `android/key.properties`, le build release Android est signé avec la clé debug.
